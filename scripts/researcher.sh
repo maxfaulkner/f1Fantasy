@@ -4,6 +4,15 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_DIR"
 
+# Locate claude binary — not in PATH when run from cron, so find it via VSCode extension
+CLAUDE_BIN=$(command -v claude 2>/dev/null || \
+  ls -t "$HOME/.vscode/extensions"/anthropic.claude-code-*/resources/native-binary/claude 2>/dev/null | head -1 || \
+  true)
+if [[ -z "$CLAUDE_BIN" ]]; then
+  echo "$(date): claude binary not found; install Claude Code or add it to PATH" >&2
+  exit 1
+fi
+
 STATE_DIR=".swarm/state"
 mkdir -p "$STATE_DIR"
 LAST_RUN_FILE="$STATE_DIR/last_proposal"
@@ -55,7 +64,7 @@ When done, output only the issue URL.
 EOF
 )
 
-claude -p "$PROMPT" \
+"$CLAUDE_BIN" -p "$PROMPT" \
   --allowedTools "Read,Glob,Grep,Bash(gh issue create:*),Bash(gh issue list:*),Bash(gh issue view:*),WebSearch" \
   --max-turns 25
 
