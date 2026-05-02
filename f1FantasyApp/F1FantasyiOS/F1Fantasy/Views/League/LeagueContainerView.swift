@@ -42,6 +42,7 @@ struct LeagueContainerView: View {
         }
         .navigationTitle(league.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
         .tint(Color.appRed)
     }
 }
