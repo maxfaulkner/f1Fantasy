@@ -70,6 +70,22 @@ jobs:
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Read,Glob,Grep"
 
+      - name: Trigger implementer if changes requested
+        if: fromJson(steps.rounds.outputs.count) < 3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          verdict=$(gh pr view ${{ github.event.pull_request.number }} \
+            --repo ${{ github.repository }} \
+            --json reviews \
+            --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]")] | last | .state // ""')
+          if [ "$verdict" = "CHANGES_REQUESTED" ]; then
+            gh api repos/${{ github.repository }}/dispatches \
+              --field event_type=request-changes \
+              --field "client_payload[pr_number]=${{ github.event.pull_request.number }}" \
+              --field "client_payload[branch]=${{ github.event.pull_request.head.ref }}"
+          fi
+
       - name: Request human review after approval
         if: fromJson(steps.rounds.outputs.count) < 3
         env:
