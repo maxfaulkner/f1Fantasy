@@ -18,6 +18,9 @@ final class StatsViewModel {
     var isLoading = false
     var errorMessage: String?
     var activeTab: StatsTab = .performance
+    var optimalTeam: OptimalTeamResponse?
+    var isLoadingOptimal = false
+    var hindsightExpanded = false
 
     enum StatsTab { case performance, prices }
 
@@ -56,5 +59,19 @@ final class StatsViewModel {
         } catch let e as APIError { errorMessage = e.errorDescription }
         catch { errorMessage = error.localizedDescription }
         isLoading = false
+    }
+
+    func fetchOptimalTeam(leagueId: String, week: Int) async {
+        isLoadingOptimal = true
+        hindsightExpanded = false
+        optimalTeam = nil
+        do {
+            optimalTeam = try await APIClient.shared.request(
+                "GET", path: "/api/leagues/\(leagueId)/optimal-team/\(week)"
+            ) as OptimalTeamResponse
+        } catch {
+            // 404 means no results yet — silently ignore
+        }
+        isLoadingOptimal = false
     }
 }

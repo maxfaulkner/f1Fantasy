@@ -1709,4 +1709,139 @@ router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
   res.json({ events: events.slice(0, limit) });
 });
 
+// ============ OPTIMAL TEAM (HINDSIGHT) ============
+
+/**
+ * GET /api/leagues/:leagueId/optimal-team/:week
+ * Returns the 5-driver + 1-constructor team that maximises fantasy points
+ * for the given week within the league budget. 404 if results not yet imported.
+ */
+router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, res) => {
+  try {
+    const { leagueId, week } = req.params;
+    const weekNum = parseInt(week);
+
+    const resultsExist = await prisma.raceResult.findFirst({
+      where: { leagueId, week: weekNum },
+      select: { id: true },
+    });
+    if (!resultsExist) {
+      return res.status(404).json({ error: 'No race results for this week' });
+    }
+
+    const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { budget: true } });
+    const budget = league?.budget ?? 100;
+
+    const [driverResults, constructorResults] = await Promise.all([
+      prisma.raceResult.findMany({
+        where: { leagueId, week: weekNum },
+        include: { driver: { select: { id: true, name: true, abbr: true } } },
+      }),
+      prisma.constructorRaceResult.findMany({
+        where: { leagueId, week: weekNum },
+        include: { constructor: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    // Fetch driver prices with fallback to most recent available week
+    const driverIds = driverResults.map(r => r.driverId);
+    let driverPrices = await prisma.driverPrice.findMany({
+      where: { driverId: { in: driverIds }, week: weekNum },
+    });
+    const pricedDriverIds = new Set(driverPrices.map(p => p.driverId));
+    const missingDriverIds = driverIds.filter(id => !pricedDriverIds.has(id));
+    if (missingDriverIds.length > 0) {
+      const fallbacks = await Promise.all(
+        missingDriverIds.map(id => prisma.driverPrice.findFirst({
+          where: { driverId: id, week: { lte: weekNum } },
+          orderBy: { week: 'desc' },
+        }))
+      );
+      driverPrices = [...driverPrices, ...fallbacks.filter(Boolean)];
+    }
+
+    // Fetch constructor prices with fallback
+    const constructorIds = constructorResults.map(r => r.constructorId);
+    let constructorPrices = await prisma.constructorPrice.findMany({
+      where: { constructorId: { in: constructorIds }, week: weekNum },
+    });
+    const pricedCtorIds = new Set(constructorPrices.map(p => p.constructorId));
+    const missingCtorIds = constructorIds.filter(id => !pricedCtorIds.has(id));
+    if (missingCtorIds.length > 0) {
+      const fallbacks = await Promise.all(
+        missingCtorIds.map(id => prisma.constructorPrice.findFirst({
+          where: { constructorId: id, week: { lte: weekNum } },
+          orderBy: { week: 'desc' },
+        }))
+      );
+      constructorPrices = [...constructorPrices, ...fallbacks.filter(Boolean)];
+    }
+
+    const driverPriceMap = Object.fromEntries(driverPrices.map(p => [p.driverId, p.price]));
+    const ctorPriceMap = Object.fromEntries(constructorPrices.map(p => [p.constructorId, p.price]));
+
+    const drivers = driverResults
+      .filter(r => driverPriceMap[r.driverId] !== undefined)
+      .map(r => ({
+        id: r.driverId,
+        name: r.driver.name,
+        abbr: r.driver.abbr,
+        points: r.points,
+        price: driverPriceMap[r.driverId],
+      }));
+
+    const constructors = constructorResults
+      .filter(r => ctorPriceMap[r.constructorId] !== undefined)
+      .map(r => ({
+        id: r.constructorId,
+        name: r.constructor.name,
+        points: r.totalPoints,
+        price: ctorPriceMap[r.constructorId],
+      }));
+
+    // Enumerate all C(n,5) driver combinations to find the highest-scoring
+    // team within budget. With ~20 drivers this is at most 15,504 combinations.
+    let bestTotal = -Infinity;
+    let bestDrivers = [];
+    let bestConstructor = null;
+
+    function choose5(start, current, currentCost, currentPoints) {
+      if (current.length === 5) {
+        for (const ctor of constructors) {
+          if (currentCost + ctor.price <= budget) {
+            const total = currentPoints + ctor.points;
+            if (total > bestTotal) {
+              bestTotal = total;
+              bestDrivers = [...current];
+              bestConstructor = ctor;
+            }
+          }
+        }
+        return;
+      }
+      const remaining = 5 - current.length;
+      for (let i = start; i <= drivers.length - remaining; i++) {
+        const d = drivers[i];
+        choose5(i + 1, [...current, d], currentCost + d.price, currentPoints + d.points);
+      }
+    }
+    choose5(0, [], 0, 0);
+
+    if (!bestConstructor) {
+      return res.status(404).json({ error: 'No valid team found within budget' });
+    }
+
+    res.json({
+      week: weekNum,
+      totalPoints: bestTotal,
+      budget,
+      drivers: bestDrivers,
+      constructor: bestConstructor,
+    });
+  } catch (error) {
+    console.error('Optimal team error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

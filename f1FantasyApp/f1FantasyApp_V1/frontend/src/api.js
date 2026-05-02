@@ -115,6 +115,10 @@ export const api = {
   updateLeagueSettings: (leagueId, data) =>
     request('PUT', `/api/leagues/${leagueId}/settings`, data),
 
+  // Optimal team (hindsight)
+  getOptimalTeam: (leagueId, week) =>
+    request('GET', `/api/leagues/${leagueId}/optimal-team/${week}`),
+
   // Admin
   getAdminRaceForm: (leagueId, week) =>
     request('GET', `/admin/races/${leagueId}/${week}`),

@@ -25,8 +25,14 @@ struct StatsView: View {
                 }
             }
         }
-        .task { await vm.load(leagueId: leagueId, week: currentWeek) }
-        .refreshable { await vm.load(leagueId: leagueId, week: currentWeek) }
+        .task {
+            await vm.load(leagueId: leagueId, week: currentWeek)
+            await vm.fetchOptimalTeam(leagueId: leagueId, week: currentWeek)
+        }
+        .refreshable {
+            await vm.load(leagueId: leagueId, week: currentWeek)
+            await vm.fetchOptimalTeam(leagueId: leagueId, week: currentWeek)
+        }
     }
 
     private var content: some View {
@@ -134,8 +140,94 @@ struct StatsView: View {
                     .cardStyle()
                     .padding(.horizontal)
                 }
+
+                // Best Possible Team (hindsight) for the latest round
+                if let lastRound = stats.rounds.last {
+                    HindsightTeamView(
+                        userPoints: lastRound.points,
+                        optimalTeam: vm.optimalTeam,
+                        isLoading: vm.isLoadingOptimal,
+                        isExpanded: $vm.hindsightExpanded
+                    )
+                    .padding(.horizontal)
+                }
             }
         }
+    }
+}
+
+// MARK: - Hindsight card
+
+struct HindsightTeamView: View {
+    let userPoints: Int
+    let optimalTeam: OptimalTeamResponse?
+    let isLoading: Bool
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() }
+            } label: {
+                HStack {
+                    Label("Best Possible Team", systemImage: "trophy.fill")
+                        .font(.subheadline).fontWeight(.semibold).foregroundStyle(.appTextPrimary)
+                    Spacer()
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.caption).foregroundStyle(.appTextDim)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if isLoading {
+                Text("Loading Dream Team…")
+                    .font(.caption).foregroundStyle(.appTextDim)
+            } else if let optimal = optimalTeam {
+                let delta = optimal.totalPoints - userPoints
+                Group {
+                    if delta > 0 {
+                        Text("You scored \(userPoints) pts · Best possible: \(optimal.totalPoints) pts (\(delta) pts left on the table)")
+                    } else if delta < 0 {
+                        Text("You scored \(userPoints) pts · Best possible: \(optimal.totalPoints) pts")
+                    } else {
+                        Text("You scored \(userPoints) pts · You matched the Dream Team!")
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(delta > 0 ? Color.appError : Color.appSuccess)
+
+                if isExpanded {
+                    VStack(spacing: 4) {
+                        ForEach(optimal.drivers) { driver in
+                            HStack {
+                                Text(driver.name).font(.caption).foregroundStyle(.appTextPrimary)
+                                Spacer()
+                                Text("$\(driver.price, specifier: "%.1f")M")
+                                    .font(.caption2).foregroundStyle(.appTextDim)
+                                Text("\(driver.points) pts")
+                                    .font(.caption).fontWeight(.semibold)
+                                    .foregroundStyle(driver.points >= 0 ? Color.appSuccess : Color.appError)
+                                    .frame(minWidth: 40, alignment: .trailing)
+                            }
+                        }
+                        Divider().background(Color.appBorder)
+                        HStack {
+                            Text(optimal.constructor.name + " (Constructor)")
+                                .font(.caption).foregroundStyle(Color(hex: "6692ff"))
+                            Spacer()
+                            Text("$\(optimal.constructor.price, specifier: "%.1f")M")
+                                .font(.caption2).foregroundStyle(.appTextDim)
+                            Text("\(optimal.constructor.points) pts")
+                                .font(.caption).fontWeight(.semibold)
+                                .foregroundStyle(optimal.constructor.points >= 0 ? Color.appSuccess : Color.appError)
+                                .frame(minWidth: 40, alignment: .trailing)
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+        }
+        .cardStyle()
     }
 }
 

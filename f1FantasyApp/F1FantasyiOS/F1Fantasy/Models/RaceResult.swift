@@ -34,6 +34,29 @@ struct WeeklyLeaderboardEntry: Decodable, Identifiable {
     let chipUsed: String?
 }
 
+struct OptimalTeamResponse: Decodable {
+    let week: Int
+    let totalPoints: Int
+    let budget: Double
+    let drivers: [OptimalDriver]
+    let constructor: OptimalConstructor
+
+    struct OptimalDriver: Decodable, Identifiable {
+        let id: String
+        let name: String
+        let abbr: String?
+        let points: Int
+        let price: Double
+    }
+
+    struct OptimalConstructor: Decodable {
+        let id: String
+        let name: String
+        let points: Int
+        let price: Double
+    }
+}
+
 struct StatsResponse: Decodable {
     let leagueId: String
     let userId: String
