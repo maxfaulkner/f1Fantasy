@@ -101,7 +101,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          allowed_bots: "claude[bot]"
+          allowed_bots: "claude[bot],github-actions[bot]"
           prompt: |
             ${{ steps.role.outputs.content }}
 
