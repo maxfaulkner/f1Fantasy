@@ -131,6 +131,15 @@ describe('GET /api/leagues/:leagueId/optimal-team/:week', () => {
     expect(driverIds).toContain('d4');
     expect(driverIds).toContain('d5');
     expect(driverIds).not.toContain('d6');
+    const driver = res.body.drivers[0];
+    expect(driver).toHaveProperty('id');
+    expect(driver).toHaveProperty('name');
+    expect(driver).toHaveProperty('points');
+    expect(driver).toHaveProperty('price');
+    expect(res.body.constructor).toHaveProperty('id');
+    expect(res.body.constructor).toHaveProperty('points');
+    expect(res.body.constructor).toHaveProperty('price');
+    expect(res.body).toHaveProperty('budget');
   });
 
   test('200: respects league budget cap — falls back to cheaper constructor', async () => {
@@ -154,29 +163,25 @@ describe('GET /api/leagues/:leagueId/optimal-team/:week', () => {
     expect(res.body.constructor.name).toBe('Beta Team');
   });
 
-  test('200: response includes driver price and points fields', async () => {
+  test('200: uses fallback price for drivers missing from current-week prices', async () => {
     prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
     prisma.raceResult.findFirst.mockResolvedValue({ id: 'rr1' });
     prisma.league.findUnique.mockResolvedValue({ budget: 100 });
     prisma.raceResult.findMany.mockResolvedValue(mockDriverResults());
     prisma.constructorRaceResult.findMany.mockResolvedValue(mockConstructorResults());
-    prisma.driverPrice.findMany.mockResolvedValue(mockDriverPrices());
+    // d6 is missing from week-1 prices; the route must fall back to findFirst
+    prisma.driverPrice.findMany.mockResolvedValue(mockDriverPrices().filter(p => p.driverId !== 'd6'));
     prisma.constructorPrice.findMany.mockResolvedValue(mockConstructorPrices());
+    prisma.driverPrice.findFirst.mockResolvedValue({ driverId: 'd6', week: 0, price: 5.0 });
 
     const res = await request(app)
       .get('/api/leagues/lg1/optimal-team/1')
       .set(auth());
 
     expect(res.status).toBe(200);
-    const driver = res.body.drivers[0];
-    expect(driver).toHaveProperty('id');
-    expect(driver).toHaveProperty('name');
-    expect(driver).toHaveProperty('points');
-    expect(driver).toHaveProperty('price');
-    expect(res.body.constructor).toHaveProperty('id');
-    expect(res.body.constructor).toHaveProperty('name');
-    expect(res.body.constructor).toHaveProperty('points');
-    expect(res.body.constructor).toHaveProperty('price');
-    expect(res.body).toHaveProperty('budget');
+    // d1-d5 still win on points; d6 is priced in via fallback but not selected
+    expect(res.body.totalPoints).toBe(120);
+    const driverIds = res.body.drivers.map(d => d.id);
+    expect(driverIds).not.toContain('d6');
   });
 });

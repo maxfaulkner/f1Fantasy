@@ -1732,7 +1732,7 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
 
     const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { budget: true } });
     if (!league) return res.status(404).json({ error: 'League not found' });
-    const budget = league.budget ?? 100;
+    const budget = league.budget;
 
     const [driverResults, constructorResults] = await Promise.all([
       prisma.raceResult.findMany({
@@ -1801,11 +1801,10 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
         price: ctorPriceMap[r.constructorId],
       }));
 
-    // Enumerate all C(n,5) driver combinations to find the highest-scoring
-    // team within budget. With ~20 drivers this is at most 15,504 combinations.
     let bestTotal = -Infinity;
     let bestDrivers = [];
     let bestConstructor = null;
+    const minCtorPrice = constructors.length > 0 ? Math.min(...constructors.map(c => c.price)) : 0;
 
     function choose5(start, current, currentCost, currentPoints) {
       if (current.length === 5) {
@@ -1814,7 +1813,7 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
             const total = currentPoints + ctor.points;
             if (total > bestTotal) {
               bestTotal = total;
-              bestDrivers = [...current];
+              bestDrivers = current.slice();
               bestConstructor = ctor;
             }
           }
@@ -1824,7 +1823,10 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
       const remaining = 5 - current.length;
       for (let i = start; i <= drivers.length - remaining; i++) {
         const d = drivers[i];
-        choose5(i + 1, [...current, d], currentCost + d.price, currentPoints + d.points);
+        if (currentCost + d.price > budget - minCtorPrice) continue;
+        current.push(d);
+        choose5(i + 1, current, currentCost + d.price, currentPoints + d.points);
+        current.pop();
       }
     }
     choose5(0, [], 0, 0);
@@ -1842,7 +1844,7 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
     });
   } catch (error) {
     console.error('Optimal team error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

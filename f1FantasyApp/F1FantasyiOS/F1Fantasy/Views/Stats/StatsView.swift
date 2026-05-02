@@ -143,7 +143,7 @@ struct StatsView: View {
 
                 // Best Possible Team (hindsight) for the latest round
                 if let lastRound = stats.rounds.last,
-                   vm.isLoadingOptimal || vm.optimalTeam != nil || vm.optimalTeamError != nil {
+                   vm.optimalTeam != nil || vm.optimalTeamError != nil {
                     HindsightTeamView(
                         userPoints: lastRound.points,
                         optimalTeam: vm.optimalTeam,

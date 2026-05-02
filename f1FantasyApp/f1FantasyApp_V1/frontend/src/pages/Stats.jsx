@@ -185,6 +185,13 @@ export default function Stats() {
   const [optimalOpen, setOptimalOpen] = useState(false);
   const [optimalError, setOptimalError] = useState(null);
 
+  function selectRound(round) {
+    setSelectedRound(round);
+    setOptimalTeam(null);
+    setOptimalError(null);
+    setOptimalOpen(false);
+  }
+
   useEffect(() => {
     api.getLeagues().then(leagues => {
       const l = leagues.find(l => l.id === leagueId);
@@ -362,7 +369,7 @@ export default function Stats() {
                 {stats.rounds.map(round => (
                   <tr
                     key={round.week}
-                    onClick={() => setSelectedRound(round)}
+                    onClick={() => selectRound(round)}
                     style={{
                       borderBottom: '1px solid rgba(255,255,255,0.04)',
                       cursor: 'pointer',
@@ -399,7 +406,7 @@ export default function Stats() {
             {stats.rounds.map(r => (
               <button
                 key={r.week}
-                onClick={() => setSelectedRound(r)}
+                onClick={() => selectRound(r)}
                 style={{
                   padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
                   background: selectedRound?.week === r.week ? 'var(--red)' : 'rgba(255,255,255,0.06)',
