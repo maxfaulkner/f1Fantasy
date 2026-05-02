@@ -87,7 +87,7 @@ final class RaceResultsViewModel {
                 let response = try JSONDecoder().decode(JolpicaQualifyingResponse.self, from: data)
                 qualifyingResults = response.mrData.raceTable.races.first?.qualifyingResults ?? []
             }
-        } catch is URLError {
+        } catch let err as URLError where err.code != .cancelled {
             sessionError = "Could not load results. Check your connection and try again."
         } catch {
             // Decode error → results not published yet, show empty state
@@ -231,8 +231,10 @@ struct RaceResultsView: View {
                 vm.constructorStandings = []
                 vm.sessionError = nil
                 await vm.loadSchedule()
-                if vm.topTab == .results { await vm.loadSession() }
-                else { await vm.loadStandings() }
+                if vm.topTab == .results {
+                    guard !vm.schedule.isEmpty else { return }
+                    await vm.loadSession()
+                } else { await vm.loadStandings() }
             }
         }
     }
