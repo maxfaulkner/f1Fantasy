@@ -47,8 +47,8 @@ final class RaceResultsViewModel {
         return race.hasSprint ? [.race, .qualifying, .sprint] : [.race, .qualifying]
     }
 
-    func loadSchedule() async {
-        guard schedule.isEmpty else { return }
+    func loadSchedule(force: Bool = false) async {
+        guard schedule.isEmpty || force else { return }
         isLoadingSchedule = true
         errorMessage = nil
         do {
@@ -90,7 +90,6 @@ final class RaceResultsViewModel {
         } catch let err as URLError where err.code != .cancelled {
             sessionError = "Could not load results. Check your connection and try again."
         } catch {
-            // Decode error → results not published yet, show empty state
         }
         isLoadingSession = false
     }
@@ -125,7 +124,6 @@ final class RaceResultsViewModel {
         raceResults = []
         sprintResults = []
         qualifyingResults = []
-        sessionError = nil
         // If sprint not available for this round, fall back to race
         if selectedSession == .sprint && !(currentRace?.hasSprint ?? false) {
             selectedSession = .race
@@ -135,7 +133,6 @@ final class RaceResultsViewModel {
 
     func selectSession(_ session: Session) async {
         selectedSession = session
-        sessionError = nil
         await loadSession()
     }
 
@@ -210,9 +207,9 @@ struct RaceResultsView: View {
             }
             .task {
                 await vm.loadSchedule()
+                vm.startLivePollingIfNeeded()
                 guard !vm.schedule.isEmpty else { return }
                 await vm.loadSession()
-                vm.startLivePollingIfNeeded()
             }
             .onDisappear { vm.stopLivePolling() }
             .onChange(of: vm.selectedRound) { _, _ in
@@ -223,14 +220,15 @@ struct RaceResultsView: View {
                 if tab == .standings { Task { await vm.loadStandings() } }
             }
             .refreshable {
-                vm.schedule = []
+                vm.errorMessage = nil
                 vm.raceResults = []
                 vm.sprintResults = []
                 vm.qualifyingResults = []
                 vm.driverStandings = []
                 vm.constructorStandings = []
                 vm.sessionError = nil
-                await vm.loadSchedule()
+                await vm.loadSchedule(force: true)
+                vm.startLivePollingIfNeeded()
                 if vm.topTab == .results {
                     guard !vm.schedule.isEmpty else { return }
                     await vm.loadSession()
