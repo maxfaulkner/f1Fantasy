@@ -90,6 +90,7 @@ final class RaceResultsViewModel {
         } catch let err as URLError where err.code != .cancelled {
             sessionError = "Could not load results. Check your connection and try again."
         } catch {
+            // Decode error means results aren't published yet — treat as empty state
         }
         isLoadingSession = false
     }
@@ -207,9 +208,9 @@ struct RaceResultsView: View {
             }
             .task {
                 await vm.loadSchedule()
-                vm.startLivePollingIfNeeded()
                 guard !vm.schedule.isEmpty else { return }
                 await vm.loadSession()
+                vm.startLivePollingIfNeeded()
             }
             .onDisappear { vm.stopLivePolling() }
             .onChange(of: vm.selectedRound) { _, _ in
@@ -228,11 +229,14 @@ struct RaceResultsView: View {
                 vm.constructorStandings = []
                 vm.sessionError = nil
                 await vm.loadSchedule(force: true)
-                vm.startLivePollingIfNeeded()
                 if vm.topTab == .results {
-                    guard !vm.schedule.isEmpty else { return }
-                    await vm.loadSession()
-                } else { await vm.loadStandings() }
+                    if !vm.schedule.isEmpty {
+                        await vm.loadSession()
+                    }
+                } else {
+                    await vm.loadStandings()
+                }
+                vm.startLivePollingIfNeeded()
             }
         }
     }
