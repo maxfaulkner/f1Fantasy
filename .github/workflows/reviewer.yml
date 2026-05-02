@@ -25,23 +25,28 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Find timestamp of the last /resume reset (epoch 0 if never resumed)
+          last_resume=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+            --jq '[.[] | select(.body | startswith("[SWARM RESUME"))] | last | .created_at // "1970-01-01T00:00:00Z"')
+          # Only count VERDICT reviews submitted after the last reset
           rounds=$(gh pr view ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
             --json reviews \
-            --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]" or .author.login == "claude" or .author.login == "claude[bot]") | select(.body | contains("VERDICT:"))] | length')
+            --jq --arg since "$last_resume" \
+            '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]" or .author.login == "claude" or .author.login == "claude[bot]") | select(.body | contains("VERDICT:")) | select(.submittedAt > $since)] | length')
           echo "count=${rounds:-0}" >> $GITHUB_OUTPUT
 
       - name: Stop if max rounds exceeded
-        if: fromJson(steps.rounds.outputs.count) >= 3
+        if: fromJson(steps.rounds.outputs.count) >= 5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh pr edit ${{ github.event.pull_request.number }} --add-label needs-human
           gh pr comment ${{ github.event.pull_request.number }} \
-            --body "@${{ github.repository_owner }} max review rounds (3) reached on this PR. Human decision needed before further iteration."
+            --body "@${{ github.repository_owner }} max review rounds (5) reached on this PR. To give the agents another cycle, just comment \`/resume\` on this PR and I'll kick it off. Or review and merge/close manually."
 
       - name: Load reviewer role
-        if: fromJson(steps.rounds.outputs.count) < 3
+        if: fromJson(steps.rounds.outputs.count) < 5
         id: role
         run: |
           {
@@ -51,7 +56,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Dismiss stale bot reviews before re-reviewing
-        if: fromJson(steps.rounds.outputs.count) < 3
+        if: fromJson(steps.rounds.outputs.count) < 5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -63,7 +68,7 @@ jobs:
             done
 
       - uses: anthropics/claude-code-action@v1
-        if: fromJson(steps.rounds.outputs.count) < 3
+        if: fromJson(steps.rounds.outputs.count) < 5
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           # Use GITHUB_TOKEN so reviewer acts as github-actions[bot], not claude[bot].
@@ -83,7 +88,7 @@ jobs:
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr review:*),Read,Glob,Grep"
 
       - name: Trigger implementer if changes requested
-        if: fromJson(steps.rounds.outputs.count) < 3
+        if: fromJson(steps.rounds.outputs.count) < 5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -100,11 +105,10 @@ jobs:
           fi
 
       - name: Request human review after approval
-        if: fromJson(steps.rounds.outputs.count) < 3
+        if: fromJson(steps.rounds.outputs.count) < 5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Check if the review just submitted was an approval; if so, request the owner's review
           verdict=$(gh pr view ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
             --json reviews \

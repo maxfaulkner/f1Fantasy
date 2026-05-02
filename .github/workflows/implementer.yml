@@ -47,6 +47,32 @@ jobs:
           claude_args: |
             --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(git branch:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(npm test:*),Bash(npm run:*)"
 
+  resume-pr:
+    # Fires when the owner comments /resume on a stalled swarm PR
+    if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '/resume') &&
+      contains(github.event.issue.labels.*.name, 'swarm-implementation')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reset round count and restart loop
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=${{ github.event.issue.number }}
+          REPO=${{ github.repository }}
+          # Post the reset marker (reviewer counts verdicts after this timestamp)
+          gh pr comment $PR --repo $REPO --body "[SWARM RESUME — round count reset by @${{ github.actor }}]"
+          # Remove the needs-human label
+          gh pr edit $PR --repo $REPO --remove-label needs-human || true
+          # Get the branch and kick the implementer
+          branch=$(gh pr view $PR --repo $REPO --json headRefName --jq '.headRefName')
+          gh api repos/$REPO/dispatches \
+            --field event_type=request-changes \
+            --field "client_payload[pr_number]=$PR" \
+            --field "client_payload[branch]=$branch"
+
   respond-to-review:
     # Fires when:
     # - reviewer posts REQUEST_CHANGES (routed via repository_dispatch to bypass GITHUB_TOKEN anti-loop)
