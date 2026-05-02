@@ -2,6 +2,7 @@ import SwiftUI
 
 // MARK: - ViewModel
 
+@MainActor
 @Observable
 final class RaceResultsViewModel {
     var schedule: [JolpicaRace] = []
@@ -20,6 +21,7 @@ final class RaceResultsViewModel {
     var isLoadingSession = false
     var isLoadingStandings = false
     var errorMessage: String?
+    var sessionError: String?
 
     // Live timing: true when the currently-selected round's race day is today ± 12h
     var isLive: Bool {
@@ -64,7 +66,9 @@ final class RaceResultsViewModel {
     }
 
     func loadSession() async {
+        guard selectedRound > 0 else { return }
         isLoadingSession = true
+        sessionError = nil
         do {
             switch selectedSession {
             case .race:
@@ -83,7 +87,11 @@ final class RaceResultsViewModel {
                 let response = try JSONDecoder().decode(JolpicaQualifyingResponse.self, from: data)
                 qualifyingResults = response.mrData.raceTable.races.first?.qualifyingResults ?? []
             }
-        } catch { /* empty results = not available yet */ }
+        } catch is URLError {
+            sessionError = "Could not load results. Check your connection and try again."
+        } catch {
+            // Decode error → results not published yet, show empty state
+        }
         isLoadingSession = false
     }
 
@@ -117,6 +125,7 @@ final class RaceResultsViewModel {
         raceResults = []
         sprintResults = []
         qualifyingResults = []
+        sessionError = nil
         // If sprint not available for this round, fall back to race
         if selectedSession == .sprint && !(currentRace?.hasSprint ?? false) {
             selectedSession = .race
@@ -126,6 +135,7 @@ final class RaceResultsViewModel {
 
     func selectSession(_ session: Session) async {
         selectedSession = session
+        sessionError = nil
         await loadSession()
     }
 
@@ -200,6 +210,7 @@ struct RaceResultsView: View {
             }
             .task {
                 await vm.loadSchedule()
+                guard !vm.schedule.isEmpty else { return }
                 await vm.loadSession()
                 vm.startLivePollingIfNeeded()
             }
@@ -212,11 +223,13 @@ struct RaceResultsView: View {
                 if tab == .standings { Task { await vm.loadStandings() } }
             }
             .refreshable {
+                vm.schedule = []
                 vm.raceResults = []
                 vm.sprintResults = []
                 vm.qualifyingResults = []
                 vm.driverStandings = []
                 vm.constructorStandings = []
+                vm.sessionError = nil
                 await vm.loadSchedule()
                 if vm.topTab == .results { await vm.loadSession() }
                 else { await vm.loadStandings() }
@@ -261,6 +274,9 @@ struct SessionResultsView: View {
 
                 if vm.isLoadingSession {
                     ProgressView().padding(40)
+                } else if let err = vm.sessionError {
+                    ErrorView(message: err) { Task { await vm.loadSession() } }
+                        .frame(minHeight: 200)
                 } else {
                     sessionContent
                 }
