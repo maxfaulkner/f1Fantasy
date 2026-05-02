@@ -11,3 +11,5 @@ Python/.DS_Store
 Python/compoundInterestCalculator/__pycache__
 
 .venv/
+
+.swarm/state/

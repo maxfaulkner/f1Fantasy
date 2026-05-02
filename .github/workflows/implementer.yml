@@ -1,0 +1,78 @@
+name: Claude Implementer
+
+on:
+  issues:
+    types: [labeled]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  implement-from-issue:
+    if: github.event_name == 'issues' && github.event.label.name == 'approved'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load implementer role
+        id: role
+        run: |
+          {
+            echo 'content<<ROLE_EOF'
+            cat .swarm/roles/implementer.md
+            echo 'ROLE_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            ${{ steps.role.outputs.content }}
+
+            ---
+
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+
+            Issue #${{ github.event.issue.number }} has been approved. Read it in full, then implement it following the role instructions above.
+          claude_args: |
+            --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(git branch:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(npm test:*),Bash(npm run:*)"
+
+  respond-to-review:
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.state == 'changes_requested' &&
+      (github.event.review.user.login == 'claude' || github.event.review.user.login == 'claude[bot]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Load implementer role
+        id: role
+        run: |
+          {
+            echo 'content<<ROLE_EOF'
+            cat .swarm/roles/implementer.md
+            echo 'ROLE_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            ${{ steps.role.outputs.content }}
+
+            ---
+
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            The reviewer has submitted a REQUEST_CHANGES review on PR #${{ github.event.pull_request.number }}. Read the review comments carefully, then respond following the role instructions above.
+          claude_args: |
+            --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(npm test:*),Bash(npm run:*)"
