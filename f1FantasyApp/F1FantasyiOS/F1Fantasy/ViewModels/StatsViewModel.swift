@@ -73,7 +73,7 @@ final class StatsViewModel {
             ) as OptimalTeamResponse
         } catch let e as APIError {
             switch e {
-            case .serverError: break  // 404 = no results yet for this round
+            case .notFound: break
             default: optimalTeamError = e.errorDescription
             }
         } catch { optimalTeamError = error.localizedDescription }

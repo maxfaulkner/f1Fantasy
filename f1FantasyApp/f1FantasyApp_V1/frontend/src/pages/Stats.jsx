@@ -183,6 +183,7 @@ export default function Stats() {
   const [optimalTeam, setOptimalTeam] = useState(null);
   const [optimalLoading, setOptimalLoading] = useState(false);
   const [optimalOpen, setOptimalOpen] = useState(false);
+  const [optimalError, setOptimalError] = useState(null);
 
   useEffect(() => {
     api.getLeagues().then(leagues => {
@@ -204,11 +205,12 @@ export default function Stats() {
   useEffect(() => {
     if (!selectedRound) return;
     setOptimalTeam(null);
+    setOptimalError(null);
     setOptimalOpen(false);
     setOptimalLoading(true);
     api.getOptimalTeam(leagueId, selectedRound.week)
       .then(data => setOptimalTeam(data))
-      .catch(() => setOptimalTeam(null))
+      .catch(e => { if (e?.status !== 404) setOptimalError(e?.message || 'Failed to load Dream Team'); })
       .finally(() => setOptimalLoading(false));
   }, [leagueId, selectedRound?.week]);
 
@@ -523,6 +525,11 @@ export default function Stats() {
               {optimalLoading && (
                 <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
                   Loading Dream Team…
+                </div>
+              )}
+              {!optimalLoading && optimalError && (
+                <div style={{ marginTop: 12, fontSize: 12, color: '#f87171' }}>
+                  {optimalError}
                 </div>
               )}
             </div>

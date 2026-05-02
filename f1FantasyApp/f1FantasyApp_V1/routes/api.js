@@ -1711,11 +1711,6 @@ router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
 
 // ============ OPTIMAL TEAM (HINDSIGHT) ============
 
-/**
- * GET /api/leagues/:leagueId/optimal-team/:week
- * Returns the 5-driver + 1-constructor team that maximises fantasy points
- * for the given week within the league budget. 404 if results not yet imported.
- */
 router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, res) => {
   try {
     const { leagueId, week } = req.params;

@@ -1,6 +1,3 @@
-// __tests__/integration/optimal-team.test.js
-// Tests for GET /api/leagues/:leagueId/optimal-team/:week
-
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../app');
