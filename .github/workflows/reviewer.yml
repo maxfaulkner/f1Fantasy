@@ -3,6 +3,8 @@ name: Claude Reviewer
 on:
   pull_request:
     types: [opened, synchronize]
+  repository_dispatch:
+    types: [review-requested]
 
 permissions:
   contents: write
@@ -12,12 +14,33 @@ permissions:
 
 jobs:
   review:
-    # Only review PRs labeled by the implementer agent. Skip human PRs.
-    if: contains(github.event.pull_request.labels.*.name, 'swarm-implementation')
+    # Allow both pull_request events (swarm-labeled PRs) and explicit review-requested dispatches
+    if: |
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'swarm-implementation')
+      ) || (
+        github.event_name == 'repository_dispatch' &&
+        github.event.action == 'review-requested'
+      )
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve PR number and branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            echo "number=${{ github.event.client_payload.pr_number }}" >> "$GITHUB_OUTPUT"
+            echo "branch=${{ github.event.client_payload.branch }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "branch=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - uses: actions/checkout@v4
         with:
+          ref: ${{ steps.pr.outputs.branch }}
           fetch-depth: 0
 
       - name: Count prior review rounds
@@ -26,10 +49,10 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Find timestamp of the last /resume reset (epoch 0 if never resumed)
-          last_resume=$(gh api repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments \
+          last_resume=$(gh api repos/${{ github.repository }}/issues/${{ steps.pr.outputs.number }}/comments \
             --jq '[.[] | select(.body | startswith("[SWARM RESUME"))] | last | .created_at // "1970-01-01T00:00:00Z"')
           # Only count VERDICT reviews submitted after the last reset
-          rounds=$(gh pr view ${{ github.event.pull_request.number }} \
+          rounds=$(gh pr view ${{ steps.pr.outputs.number }} \
             --repo ${{ github.repository }} \
             --json reviews \
             --jq --arg since "$last_resume" \
@@ -41,9 +64,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr edit ${{ github.event.pull_request.number }} --add-label needs-human
-          gh pr comment ${{ github.event.pull_request.number }} \
-            --body "@${{ github.repository_owner }} max review rounds (5) reached on this PR. To give the agents another cycle, just comment \`/resume\` on this PR and I'll kick it off. Or review and merge/close manually."
+          gh pr edit ${{ steps.pr.outputs.number }} --add-label needs-human
+          gh pr comment ${{ steps.pr.outputs.number }} \
+            --body "@${{ github.repository_owner }} max review rounds (5) reached on this PR. To give the agents another cycle, comment \`/resume\` on this PR. Or review and merge/close manually."
 
       - name: Load reviewer role
         if: fromJson(steps.rounds.outputs.count) < 5
@@ -60,10 +83,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+          gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/reviews \
             --jq '.[] | select((.user.login == "github-actions[bot]" or .user.login == "github-actions") and .state == "CHANGES_REQUESTED") | .id' \
           | while read review_id; do
-              gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${review_id}/dismissals \
+              gh api repos/${{ github.repository }}/pulls/${{ steps.pr.outputs.number }}/reviews/${review_id}/dismissals \
                 -X PUT --field message="Superseded by new review round." || true
             done
 
@@ -74,14 +97,14 @@ jobs:
           # Use GITHUB_TOKEN so reviewer acts as github-actions[bot], not claude[bot].
           # This allows formal APPROVE/REQUEST_CHANGES reviews on PRs opened by claude[bot].
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          allowed_bots: "claude[bot]"
+          allowed_bots: "claude[bot],github-actions[bot]"
           prompt: |
             ${{ steps.role.outputs.content }}
 
             ---
 
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ steps.pr.outputs.number }}
 
             Review this PR now following the role instructions above. Use `gh pr review` to submit the formal verdict (REQUEST_CHANGES or APPROVE).
           claude_args: |
@@ -93,15 +116,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           sleep 5
-          verdict=$(gh pr view ${{ github.event.pull_request.number }} \
+          verdict=$(gh pr view ${{ steps.pr.outputs.number }} \
             --repo ${{ github.repository }} \
             --json reviews \
             --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]")] | last | .state // ""')
           if [ "$verdict" = "CHANGES_REQUESTED" ]; then
             gh api repos/${{ github.repository }}/dispatches \
               --field event_type=request-changes \
-              --field "client_payload[pr_number]=${{ github.event.pull_request.number }}" \
-              --field "client_payload[branch]=${{ github.event.pull_request.head.ref }}"
+              --field "client_payload[pr_number]=${{ steps.pr.outputs.number }}" \
+              --field "client_payload[branch]=${{ steps.pr.outputs.branch }}"
           fi
 
       - name: Request human review after approval
@@ -109,11 +132,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          verdict=$(gh pr view ${{ github.event.pull_request.number }} \
+          verdict=$(gh pr view ${{ steps.pr.outputs.number }} \
             --repo ${{ github.repository }} \
             --json reviews \
             --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]")] | last | .state // ""')
           if [ "$verdict" = "APPROVED" ]; then
-            gh pr edit ${{ github.event.pull_request.number }} \
+            gh pr edit ${{ steps.pr.outputs.number }} \
               --add-reviewer ${{ github.repository_owner }} || true
           fi

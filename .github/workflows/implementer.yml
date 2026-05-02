@@ -140,3 +140,13 @@ jobs:
             The reviewer has posted REQUEST_CHANGES on PR #${{ steps.pr.outputs.number }}. Read the review comments carefully, then respond following the role instructions above.
           claude_args: |
             --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(npm test:*),Bash(npm run:*)"
+
+      - name: Notify reviewer that implementer is done
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/dispatches \
+            --field event_type=review-requested \
+            --field "client_payload[pr_number]=${{ steps.pr.outputs.number }}" \
+            --field "client_payload[branch]=${{ steps.pr.outputs.branch }}"
