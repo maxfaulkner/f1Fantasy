@@ -21,6 +21,7 @@ final class StatsViewModel {
     var optimalTeam: OptimalTeamResponse?
     var isLoadingOptimal = false
     var hindsightExpanded = false
+    var optimalTeamError: String?
 
     enum StatsTab { case performance, prices }
 
@@ -65,13 +66,17 @@ final class StatsViewModel {
         isLoadingOptimal = true
         hindsightExpanded = false
         optimalTeam = nil
+        optimalTeamError = nil
         do {
             optimalTeam = try await APIClient.shared.request(
                 "GET", path: "/api/leagues/\(leagueId)/optimal-team/\(week)"
             ) as OptimalTeamResponse
-        } catch {
-            // 404 means no results yet — silently ignore
-        }
+        } catch let e as APIError {
+            switch e {
+            case .serverError: break  // 404 = no results yet for this round
+            default: optimalTeamError = e.errorDescription
+            }
+        } catch { optimalTeamError = error.localizedDescription }
         isLoadingOptimal = false
     }
 }

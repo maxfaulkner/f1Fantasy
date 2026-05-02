@@ -1719,7 +1719,13 @@ router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
 router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, res) => {
   try {
     const { leagueId, week } = req.params;
-    const weekNum = parseInt(week);
+    const weekNum = parseInt(week, 10);
+    if (isNaN(weekNum)) return res.status(400).json({ error: 'Invalid week parameter' });
+
+    const member = await prisma.leagueUser.findUnique({
+      where: { userId_leagueId: { userId: req.user.id, leagueId } },
+    });
+    if (!member) return res.status(403).json({ error: 'Not a member of this league' });
 
     const resultsExist = await prisma.raceResult.findFirst({
       where: { leagueId, week: weekNum },
@@ -1730,7 +1736,8 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
     }
 
     const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { budget: true } });
-    const budget = league?.budget ?? 100;
+    if (!league) return res.status(404).json({ error: 'League not found' });
+    const budget = league.budget ?? 100;
 
     const [driverResults, constructorResults] = await Promise.all([
       prisma.raceResult.findMany({

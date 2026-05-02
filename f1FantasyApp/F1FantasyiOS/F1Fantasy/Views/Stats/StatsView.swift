@@ -142,11 +142,13 @@ struct StatsView: View {
                 }
 
                 // Best Possible Team (hindsight) for the latest round
-                if let lastRound = stats.rounds.last {
+                if let lastRound = stats.rounds.last,
+                   vm.isLoadingOptimal || vm.optimalTeam != nil || vm.optimalTeamError != nil {
                     HindsightTeamView(
                         userPoints: lastRound.points,
                         optimalTeam: vm.optimalTeam,
                         isLoading: vm.isLoadingOptimal,
+                        errorMessage: vm.optimalTeamError,
                         isExpanded: $vm.hindsightExpanded
                     )
                     .padding(.horizontal)
@@ -162,6 +164,7 @@ struct HindsightTeamView: View {
     let userPoints: Int
     let optimalTeam: OptimalTeamResponse?
     let isLoading: Bool
+    let errorMessage: String?
     @Binding var isExpanded: Bool
 
     var body: some View {
@@ -182,6 +185,8 @@ struct HindsightTeamView: View {
             if isLoading {
                 Text("Loading Dream Team…")
                     .font(.caption).foregroundStyle(.appTextDim)
+            } else if let msg = errorMessage {
+                Text(msg).font(.caption).foregroundStyle(.appError)
             } else if let optimal = optimalTeam {
                 let delta = optimal.totalPoints - userPoints
                 Group {

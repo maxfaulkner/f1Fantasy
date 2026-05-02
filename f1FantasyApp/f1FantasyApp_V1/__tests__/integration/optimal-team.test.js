@@ -57,7 +57,27 @@ describe('GET /api/leagues/:leagueId/optimal-team/:week', () => {
     expect(res.status).toBe(401);
   });
 
+  test('403: non-member cannot access another league', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/optimal-team/1')
+      .set(auth());
+    expect(res.status).toBe(403);
+  });
+
+  test('400: returns 400 for non-numeric week', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/optimal-team/abc')
+      .set(auth());
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid week/i);
+  });
+
   test('404: returns 404 when no race results for week', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
     prisma.raceResult.findFirst.mockResolvedValue(null);
 
     const res = await request(app)
@@ -67,7 +87,27 @@ describe('GET /api/leagues/:leagueId/optimal-team/:week', () => {
     expect(res.body.error).toMatch(/no race results/i);
   });
 
+  test('404: returns 404 when no valid team fits within budget', async () => {
+    // Budget so tight ($10M) that no 5-driver + constructor combo fits
+    prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
+    prisma.raceResult.findFirst.mockResolvedValue({ id: 'rr1' });
+    prisma.league.findUnique.mockResolvedValue({ budget: 10 });
+    prisma.raceResult.findMany.mockResolvedValue(mockDriverResults());
+    prisma.constructorRaceResult.findMany.mockResolvedValue(mockConstructorResults());
+    prisma.driverPrice.findMany.mockResolvedValue(mockDriverPrices());
+    prisma.constructorPrice.findMany.mockResolvedValue(mockConstructorPrices());
+    prisma.driverPrice.findFirst.mockResolvedValue(null);
+    prisma.constructorPrice.findFirst.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/optimal-team/1')
+      .set(auth());
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/no valid team/i);
+  });
+
   test('200: returns optimal team within budget', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
     prisma.raceResult.findFirst.mockResolvedValue({ id: 'rr1' });
     prisma.league.findUnique.mockResolvedValue({ budget: 100 });
     prisma.raceResult.findMany.mockResolvedValue(mockDriverResults());
@@ -99,6 +139,7 @@ describe('GET /api/leagues/:leagueId/optimal-team/:week', () => {
   test('200: respects league budget cap — falls back to cheaper constructor', async () => {
     // Budget only $80M: d1+d2+d3+d4+d5 = $65M, c1 = $30M → $95M > $80M
     // So picks c2 ($5M, 10pts) → total = 90 + 10 = 100
+    prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
     prisma.raceResult.findFirst.mockResolvedValue({ id: 'rr1' });
     prisma.league.findUnique.mockResolvedValue({ budget: 80 });
     prisma.raceResult.findMany.mockResolvedValue(mockDriverResults());
@@ -117,6 +158,7 @@ describe('GET /api/leagues/:leagueId/optimal-team/:week', () => {
   });
 
   test('200: response includes driver price and points fields', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ id: 'lu1' });
     prisma.raceResult.findFirst.mockResolvedValue({ id: 'rr1' });
     prisma.league.findUnique.mockResolvedValue({ budget: 100 });
     prisma.raceResult.findMany.mockResolvedValue(mockDriverResults());
