@@ -53,6 +53,7 @@ jobs:
         if: fromJson(steps.rounds.outputs.count) < 3
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          allowed_bots: "claude[bot]"
           prompt: |
             ${{ steps.role.outputs.content }}
 
