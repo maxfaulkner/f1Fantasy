@@ -50,6 +50,18 @@ jobs:
             echo 'ROLE_EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Dismiss stale bot reviews before re-reviewing
+        if: fromJson(steps.rounds.outputs.count) < 3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews \
+            --jq '.[] | select((.user.login == "github-actions[bot]" or .user.login == "github-actions") and .state == "CHANGES_REQUESTED") | .id' \
+          | while read review_id; do
+              gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews/${review_id}/dismissals \
+                -X PUT --field message="Superseded by new review round." || true
+            done
+
       - uses: anthropics/claude-code-action@v1
         if: fromJson(steps.rounds.outputs.count) < 3
         with:
