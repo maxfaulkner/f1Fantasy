@@ -54,8 +54,8 @@ jobs:
           # Only count VERDICT reviews submitted after the last reset
           rounds=$(gh pr view ${{ steps.pr.outputs.number }} \
             --repo ${{ github.repository }} \
-            --json reviews \
-            --jq --arg since "$last_resume" \
+            --json reviews | \
+            jq --arg since "$last_resume" \
             '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]" or .author.login == "claude" or .author.login == "claude[bot]") | select(.body | contains("VERDICT:")) | select(.submittedAt > $since)] | length')
           echo "count=${rounds:-0}" >> $GITHUB_OUTPUT
 
