@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { isLoggedIn } from './auth';
+import { LiveTimingProvider } from './contexts/LiveTimingContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import ToastContainer from './components/Toast';
 import Login from './pages/Login';
@@ -23,6 +24,7 @@ import PriceWatch from './pages/PriceWatch';
 import Compare from './pages/Compare';
 import DraftBoard from './pages/DraftBoard';
 import QuickPick from './pages/QuickPick';
+import LiveRace from './pages/LiveRace';
 
 function Protected({ children }) {
   return isLoggedIn() ? children : <Navigate to="/login" replace />;
@@ -31,15 +33,17 @@ function Protected({ children }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <ErrorBoundary>
-        <ToastContainer />
-        <Routes>
+      <LiveTimingProvider>
+        <ErrorBoundary>
+          <ToastContainer />
+          <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/" element={<Protected><Leagues /></Protected>} />
             <Route path="/leagues" element={<Protected><Leagues /></Protected>} />
             <Route path="/leagues/discover" element={<Protected><PublicLeagues /></Protected>} />
             <Route path="/leagues/:leagueId" element={<Protected><LeagueHome /></Protected>} />
+            <Route path="/leagues/:leagueId/live" element={<Protected><LiveRace /></Protected>} />
             <Route path="/leagues/:leagueId/team/:week" element={<Protected><TeamPicker /></Protected>} />
             <Route path="/leagues/:leagueId/leaderboard" element={<Protected><Leaderboard /></Protected>} />
             <Route path="/leagues/:leagueId/admin/:week" element={<Protected><AdminRace /></Protected>} />
@@ -50,15 +54,17 @@ export default function App() {
             <Route path="/leagues/:leagueId/transfers" element={<Protected><Transfers /></Protected>} />
             <Route path="/leagues/:leagueId/h2h" element={<Protected><H2HMatchups /></Protected>} />
             <Route path="/leagues/:leagueId/settings" element={<Protected><LeagueSettings /></Protected>} />
-            <Route path="/calendar" element={<Protected><Calendar /></Protected>} />
             <Route path="/leagues/:leagueId/prices" element={<Protected><PriceWatch /></Protected>} />
             <Route path="/leagues/:leagueId/compare" element={<Protected><Compare /></Protected>} />
             <Route path="/leagues/:leagueId/draft" element={<Protected><DraftBoard /></Protected>} />
             <Route path="/leagues/:leagueId/quickpick" element={<Protected><QuickPick /></Protected>} />
+            <Route path="/live" element={<Protected><LiveRace /></Protected>} />
+            <Route path="/calendar" element={<Protected><Calendar /></Protected>} />
             <Route path="/profile" element={<Protected><Profile /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </ErrorBoundary>
+          </Routes>
+        </ErrorBoundary>
+      </LiveTimingProvider>
     </BrowserRouter>
   );
 }
