@@ -4,6 +4,7 @@ import Foundation
 
 enum APIError: LocalizedError {
     case unauthorized
+    case notFound(String)
     case serverError(String)
     case decodingError(Error)
     case networkError(Error)
@@ -12,6 +13,7 @@ enum APIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .unauthorized:          return "Session expired. Please sign in again."
+        case .notFound(let msg):     return msg.isEmpty ? "Not found." : msg
         case .serverError(let msg):  return msg
         case .decodingError(let e):  return "Data error: \(e.localizedDescription)"
         case .networkError(let e):   return e.localizedDescription
@@ -79,6 +81,10 @@ final class APIClient {
         if http.statusCode == 401 {
             KeychainHelper.shared.deleteToken()
             throw APIError.unauthorized
+        }
+        if http.statusCode == 404 {
+            let msg = (try? decoder.decode(APIErrorResponse.self, from: data))?.error ?? ""
+            throw APIError.notFound(msg)
         }
         guard (200..<300).contains(http.statusCode) else {
             let msg = (try? decoder.decode(APIErrorResponse.self, from: data))?.error ?? "Request failed (\(http.statusCode))"

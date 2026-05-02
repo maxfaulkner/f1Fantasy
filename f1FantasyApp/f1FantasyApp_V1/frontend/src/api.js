@@ -25,7 +25,11 @@ async function request(method, path, body) {
     return;
   }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) {
+    const err = new Error(data.error || 'Request failed');
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -114,6 +118,10 @@ export const api = {
   // League Settings (commissioner)
   updateLeagueSettings: (leagueId, data) =>
     request('PUT', `/api/leagues/${leagueId}/settings`, data),
+
+  // Optimal team (hindsight)
+  getOptimalTeam: (leagueId, week) =>
+    request('GET', `/api/leagues/${leagueId}/optimal-team/${week}`),
 
   // Admin
   getAdminRaceForm: (leagueId, week) =>

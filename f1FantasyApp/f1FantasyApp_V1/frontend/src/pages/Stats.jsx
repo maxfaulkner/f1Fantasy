@@ -180,6 +180,17 @@ export default function Stats() {
   const [error, setError] = useState('');
   const [leagueName, setLeagueName] = useState('');
   const [selectedRound, setSelectedRound] = useState(null);
+  const [optimalTeam, setOptimalTeam] = useState(null);
+  const [optimalLoading, setOptimalLoading] = useState(false);
+  const [optimalOpen, setOptimalOpen] = useState(false);
+  const [optimalError, setOptimalError] = useState(null);
+
+  function selectRound(round) {
+    setSelectedRound(round);
+    setOptimalTeam(null);
+    setOptimalError(null);
+    setOptimalOpen(false);
+  }
 
   useEffect(() => {
     api.getLeagues().then(leagues => {
@@ -197,6 +208,18 @@ export default function Stats() {
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, [leagueId]);
+
+  useEffect(() => {
+    if (!selectedRound) return;
+    setOptimalTeam(null);
+    setOptimalError(null);
+    setOptimalOpen(false);
+    setOptimalLoading(true);
+    api.getOptimalTeam(leagueId, selectedRound.week)
+      .then(data => setOptimalTeam(data))
+      .catch(e => { if (e?.status !== 404) setOptimalError(e?.message || 'Failed to load Dream Team'); })
+      .finally(() => setOptimalLoading(false));
+  }, [leagueId, selectedRound?.week]);
 
   const currentWeek = stats?.rounds?.length > 0
     ? stats.rounds[stats.rounds.length - 1].week
@@ -346,7 +369,7 @@ export default function Stats() {
                 {stats.rounds.map(round => (
                   <tr
                     key={round.week}
-                    onClick={() => setSelectedRound(round)}
+                    onClick={() => selectRound(round)}
                     style={{
                       borderBottom: '1px solid rgba(255,255,255,0.04)',
                       cursor: 'pointer',
@@ -383,7 +406,7 @@ export default function Stats() {
             {stats.rounds.map(r => (
               <button
                 key={r.week}
-                onClick={() => setSelectedRound(r)}
+                onClick={() => selectRound(r)}
                 style={{
                   padding: '4px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600,
                   background: selectedRound?.week === r.week ? 'var(--red)' : 'rgba(255,255,255,0.06)',
@@ -455,6 +478,65 @@ export default function Stats() {
                       </span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Hindsight: Best Possible Team */}
+              {!optimalLoading && optimalTeam && (
+                <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                  <button
+                    onClick={() => setOptimalOpen(o => !o)}
+                    style={{
+                      width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: 0,
+                    }}
+                  >
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      🏆 Best Possible Team
+                      <InfoTooltip text="The highest-scoring 5-driver + 1-constructor combination that could have been picked within the league budget. No captain or chip effects applied." />
+                    </span>
+                    <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{optimalOpen ? '▲' : '▼'}</span>
+                  </button>
+
+                  <div style={{
+                    marginTop: 8, fontSize: 12,
+                    color: (() => {
+                      const delta = optimalTeam.totalPoints - selectedRound.points;
+                      return delta > 0 ? '#f87171' : '#22c55e';
+                    })(),
+                    fontWeight: 600,
+                  }}>
+                    You scored {selectedRound.points} pts · Best possible: {optimalTeam.totalPoints} pts
+                    {optimalTeam.totalPoints !== selectedRound.points && (
+                      <span style={{ color: 'rgba(255,255,255,0.4)', fontWeight: 400 }}>
+                        {' '}({Math.abs(optimalTeam.totalPoints - selectedRound.points)} pts {optimalTeam.totalPoints > selectedRound.points ? 'left on the table' : 'above Dream Team'})
+                      </span>
+                    )}
+                  </div>
+
+                  {optimalOpen && (
+                    <div style={{ marginTop: 10 }}>
+                      {optimalTeam.drivers.map(d => (
+                        <DriverRow key={d.id} name={d.name} points={d.points} />
+                      ))}
+                      <DriverRow
+                        name={`${optimalTeam.constructor.name} (Constructor)`}
+                        points={optimalTeam.constructor.points}
+                        color="#6692ff"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+              {optimalLoading && (
+                <div style={{ marginTop: 12, fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>
+                  Loading Dream Team…
+                </div>
+              )}
+              {!optimalLoading && optimalError && (
+                <div style={{ marginTop: 12, fontSize: 12, color: '#f87171' }}>
+                  {optimalError}
                 </div>
               )}
             </div>

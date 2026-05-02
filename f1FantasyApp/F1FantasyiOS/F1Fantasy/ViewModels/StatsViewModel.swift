@@ -18,6 +18,11 @@ final class StatsViewModel {
     var isLoading = false
     var errorMessage: String?
     var activeTab: StatsTab = .performance
+    var optimalTeam: OptimalTeamResponse?
+    var isLoadingOptimal = false
+    var hindsightExpanded = false
+    var optimalTeamError: String?
+    var optimalTeamNoResults = false
 
     enum StatsTab { case performance, prices }
 
@@ -56,5 +61,25 @@ final class StatsViewModel {
         } catch let e as APIError { errorMessage = e.errorDescription }
         catch { errorMessage = error.localizedDescription }
         isLoading = false
+    }
+
+    @MainActor
+    func fetchOptimalTeam(leagueId: String, week: Int) async {
+        isLoadingOptimal = true
+        hindsightExpanded = false
+        optimalTeam = nil
+        optimalTeamError = nil
+        optimalTeamNoResults = false
+        do {
+            optimalTeam = try await APIClient.shared.request(
+                "GET", path: "/api/leagues/\(leagueId)/optimal-team/\(week)"
+            ) as OptimalTeamResponse
+        } catch let e as APIError {
+            switch e {
+            case .notFound: optimalTeamNoResults = true
+            default: optimalTeamError = e.errorDescription
+            }
+        } catch { optimalTeamError = error.localizedDescription }
+        isLoadingOptimal = false
     }
 }
