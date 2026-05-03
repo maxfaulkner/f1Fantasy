@@ -1,18 +1,11 @@
 // services/pricingEngine.js
-const prisma = require('../prisma'); // your prisma client
-
-const F1_POINTS = {
-  1: 25,
-  2: 18,
-  3: 15,
-  4: 12,
-  5: 10,
-  6: 8,
-  7: 6,
-  8: 4,
-  9: 2,
-  10: 1,
-};
+const prisma = require('../prisma');
+const {
+  PRICING_PERF_WEIGHT,
+  PRICING_MARKET_WEIGHT,
+  MIN_DRIVER_PRICE,
+  DEFAULT_DRIVER_SEED_PRICE,
+} = require('../constants');
 
 /**
  * Get expected finishing position for a driver based on:
@@ -99,7 +92,7 @@ async function calculateMarketPressure(driverId, leagueId, currentWeek) {
 
 /**
  * Update driver price based on race results
- * Formula: new_price = old_price × (1 + performance_delta × 0.15 + market_pressure × 0.08)
+ * Formula: new_price = old_price × (1 + performance_delta × PRICING_PERF_WEIGHT + market_pressure × PRICING_MARKET_WEIGHT)
  */
 async function updateDriverPrice(driver, finishingPosition, leagueId, currentWeek) {
   let oldPrice = await prisma.driverPrice.findUnique({
@@ -125,21 +118,21 @@ async function updateDriverPrice(driver, finishingPosition, leagueId, currentWee
   }
 
   if (!oldPrice) {
-    // No price record at all — seed a $8M default so the import doesn't crash.
-    console.warn(`No price found for driver ${driver.id} up to week ${currentWeek}; seeding $8M default`);
+    // No price record at all — seed a default so the import doesn't crash.
+    console.warn(`No price found for driver ${driver.id} up to week ${currentWeek}; seeding $${DEFAULT_DRIVER_SEED_PRICE}M default`);
     await prisma.driverPrice.upsert({
       where: { driverId_week: { driverId: driver.id, week: currentWeek } },
-      create: { driverId: driver.id, week: currentWeek, price: 8.0 },
+      create: { driverId: driver.id, week: currentWeek, price: DEFAULT_DRIVER_SEED_PRICE },
       update: {},
     });
-    oldPrice = { price: 8.0 };
+    oldPrice = { price: DEFAULT_DRIVER_SEED_PRICE };
   }
 
   const perfDelta = await calculatePerformanceDelta(driver, finishingPosition, leagueId, currentWeek);
   const marketPressure = await calculateMarketPressure(driver.id, leagueId, currentWeek);
 
-  const multiplier = 1 + (perfDelta * 0.15) + (marketPressure * 0.08);
-  const newPrice = Math.max(0.5, oldPrice.price * multiplier); // min price $0.5M
+  const multiplier = 1 + (perfDelta * PRICING_PERF_WEIGHT) + (marketPressure * PRICING_MARKET_WEIGHT);
+  const newPrice = Math.max(MIN_DRIVER_PRICE, oldPrice.price * multiplier);
 
   // Store audit log
   await prisma.pricingAuditLog.create({
@@ -258,5 +251,4 @@ module.exports = {
   calculatePerformanceDelta,
   calculateMarketPressure,
   getExpectedPosition,
-  F1_POINTS,
 };

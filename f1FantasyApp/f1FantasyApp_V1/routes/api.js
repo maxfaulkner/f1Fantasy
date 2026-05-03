@@ -10,6 +10,7 @@ const authMiddleware = require('../middleware/auth');
 const { isRoundLocked } = require('../jobs/weeklyRaceImportJob');
 const { checkAchievementsAfterRace } = require('../services/achievementService');
 const { sendPushToUsers } = require('../services/pushNotificationService');
+const { CHIP_TYPES, DEFAULT_BUDGET } = require('../constants');
 
 // Notify all members of a league that results were imported
 async function notifyResultsImported(leagueId, round, leagueName, eventLabel) {
@@ -128,28 +129,41 @@ async function generateH2HMatchups(leagueId, week) {
  */
 async function updateLeagueUserCache(leagueId) {
   try {
-    const leagueUsers = await prisma.leagueUser.findMany({
-      where: { leagueId },
-      include: {
-        user: {
-          include: {
-            weeklyTeams: {
-              where: { leagueId },
-              include: { drivers: true, constructors: true },
+    const [leagueUsers, allRaceResults, allConstructorResults] = await Promise.all([
+      prisma.leagueUser.findMany({
+        where: { leagueId },
+        include: {
+          user: {
+            include: {
+              weeklyTeams: {
+                where: { leagueId },
+                include: { drivers: true, constructors: true },
+              },
             },
           },
         },
-      },
-    });
+      }),
+      prisma.raceResult.findMany({ where: { leagueId } }),
+      prisma.constructorRaceResult.findMany({ where: { leagueId } }),
+    ]);
+
+    const raceResultMap = new Map();
+    for (const r of allRaceResults) {
+      const key = `${r.driverId}:${r.week}`;
+      if (!raceResultMap.has(key)) raceResultMap.set(key, []);
+      raceResultMap.get(key).push(r);
+    }
+    const constructorResultMap = new Map();
+    for (const cr of allConstructorResults) {
+      constructorResultMap.set(`${cr.constructorId}:${cr.week}`, cr);
+    }
 
     for (const lu of leagueUsers) {
       let totalPoints = 0;
       let totalWins = 0;
       for (const team of lu.user.weeklyTeams) {
         for (const td of team.drivers) {
-          const results = await prisma.raceResult.findMany({
-            where: { driverId: td.driverId, leagueId, week: team.week },
-          });
+          const results = raceResultMap.get(`${td.driverId}:${team.week}`) || [];
           for (const r of results) {
             let pts = r.points;
             if (team.chipUsed === 'no_negative' && pts < 0) pts = 0;
@@ -160,9 +174,7 @@ async function updateLeagueUserCache(leagueId) {
         }
         const ctor = team.constructors[0];
         if (ctor) {
-          const cr = await prisma.constructorRaceResult.findFirst({
-            where: { constructorId: ctor.constructorId, leagueId, week: team.week },
-          });
+          const cr = constructorResultMap.get(`${ctor.constructorId}:${team.week}`);
           if (cr) totalPoints += cr.totalPoints;
         }
       }
@@ -221,20 +233,14 @@ router.post('/leagues', authMiddleware, async (req, res) => {
       include: { users: true },
     });
 
-    // Give creator their 4 chips
     await prisma.chip.createMany({
-      data: [
-        { userId, leagueId: league.id, type: 'wildcard' },
-        { userId, leagueId: league.id, type: 'triple_captain' },
-        { userId, leagueId: league.id, type: 'no_negative' },
-        { userId, leagueId: league.id, type: 'bench_boost' },
-      ],
+      data: CHIP_TYPES.map(type => ({ userId, leagueId: league.id, type })),
     });
 
     res.status(201).json(league);
   } catch (error) {
     console.error('Error creating league:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -286,7 +292,7 @@ router.get('/leagues', authMiddleware, async (req, res) => {
     })));
   } catch (error) {
     console.error('Error listing leagues:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -314,7 +320,8 @@ router.get('/leagues/public', authMiddleware, async (req, res) => {
       memberCount: l._count.users,
     })));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching public leagues:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -338,7 +345,7 @@ router.get('/leagues/:leagueId', authMiddleware, async (req, res) => {
     res.json(league);
   } catch (error) {
     console.error('Error fetching league:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -365,21 +372,15 @@ router.post('/leagues/:leagueId/join', authMiddleware, async (req, res) => {
 
     await prisma.leagueUser.create({ data: { userId, leagueId } });
 
-    // Give new member their 4 chips
     await prisma.chip.createMany({
-      data: [
-        { userId, leagueId, type: 'wildcard' },
-        { userId, leagueId, type: 'triple_captain' },
-        { userId, leagueId, type: 'no_negative' },
-        { userId, leagueId, type: 'bench_boost' },
-      ],
+      data: CHIP_TYPES.map(type => ({ userId, leagueId, type })),
       skipDuplicates: true,
     });
 
     res.json({ message: 'Joined league successfully', leagueId, leagueName: league.name });
   } catch (error) {
     console.error('Error joining league:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -407,18 +408,14 @@ router.post('/leagues/join-code/:code', authMiddleware, async (req, res) => {
 
     await prisma.leagueUser.create({ data: { userId, leagueId: league.id } });
     await prisma.chip.createMany({
-      data: [
-        { userId, leagueId: league.id, type: 'wildcard' },
-        { userId, leagueId: league.id, type: 'triple_captain' },
-        { userId, leagueId: league.id, type: 'no_negative' },
-        { userId, leagueId: league.id, type: 'bench_boost' },
-      ],
+      data: CHIP_TYPES.map(type => ({ userId, leagueId: league.id, type })),
       skipDuplicates: true,
     });
 
     res.json({ message: 'Joined league successfully', leagueId: league.id, leagueName: league.name });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error joining league by code:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -488,7 +485,7 @@ router.get(
       res.json({ ...team, drivers: enrichedDrivers, constructors: enrichedConstructors, totalRoundPoints });
     } catch (error) {
       console.error('Error fetching team:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -569,7 +566,7 @@ router.post(
 
       // Calculate total cost
       const leagueForBudget = await prisma.league.findUnique({ where: { id: leagueId }, select: { budget: true } });
-      const budget = leagueForBudget?.budget ?? 100; // millions
+      const budget = leagueForBudget?.budget ?? DEFAULT_BUDGET;
       const driverCost = driverPrices.reduce((sum, p) => sum + p.price, 0);
       const totalCost = driverCost + constructorPrice.price;
 
@@ -650,7 +647,7 @@ router.post(
       });
     } catch (error) {
       console.error('Error submitting team:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -698,7 +695,8 @@ router.get('/leagues/:leagueId/team/:week/:userId', authMiddleware, async (req, 
 
     res.json({ ...team, drivers: enrichedDrivers, constructors: enrichedConstructors, totalRoundPoints });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching player team:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -757,12 +755,12 @@ router.get('/leagues/:leagueId/prices/:week', authMiddleware, async (req, res) =
       week: weekNum,
       drivers,
       constructors,
-      totalBudget: league?.budget ?? 100,
+      totalBudget: league?.budget ?? DEFAULT_BUDGET,
       locked: await isRoundLocked(weekNum),
     });
   } catch (error) {
     console.error('Error fetching prices:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -806,7 +804,7 @@ router.get('/leagues/:leagueId/driver-form/:week', authMiddleware, async (req, r
     res.json({ form: formMap, prices: priceMap });
   } catch (error) {
     console.error('Error fetching driver form:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -951,7 +949,7 @@ router.get('/leagues/:leagueId/leaderboard', authMiddleware, async (req, res) =>
     res.json({ standings, latestRound: latestWeek });
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -972,7 +970,8 @@ router.get('/leagues/:leagueId/chips', authMiddleware, async (req, res) => {
 
     res.json(chips);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching chips:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -992,7 +991,8 @@ router.get('/leagues/:leagueId/transfers', authMiddleware, async (req, res) => {
 
     res.json(transfers);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching transfers:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1057,7 +1057,8 @@ router.get('/leagues/:leagueId/leaderboard/weekly/:week', authMiddleware, async 
 
     res.json({ week: weekNum, standings: weekStandings });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching weekly leaderboard:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1085,7 +1086,8 @@ router.get('/leagues/:leagueId/members', authMiddleware, async (req, res) => {
       totalPoints: m.totalPoints,
     })));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching members:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1106,7 +1108,8 @@ router.put('/leagues/:leagueId/team-name', authMiddleware, async (req, res) => {
 
     res.json({ message: 'Team name updated', teamName });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error updating team name:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1189,7 +1192,7 @@ router.post('/admin/races/:leagueId/:week', authMiddleware, async (req, res) => 
     });
   } catch (error) {
     console.error('Error processing race results:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1380,7 +1383,7 @@ router.get('/leagues/:leagueId/h2h', authMiddleware, async (req, res) => {
     res.json({ matchups: enriched, records });
   } catch (error) {
     console.error('H2H error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1419,7 +1422,7 @@ router.put('/leagues/:leagueId/settings', authMiddleware, async (req, res) => {
     res.json({ message: 'Settings updated', league: updated });
   } catch (error) {
     console.error('Settings update error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1541,7 +1544,7 @@ router.post('/admin/check-results', checkResultsLimiter, authMiddleware, async (
     res.json({ status: 'imported', message: `${eventLabel} imported — ${totalSaved} results saved across ${leagues.length - skipped} league(s).`, round });
   } catch (error) {
     console.error('Error checking results:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1561,7 +1564,8 @@ router.get('/results/latest', authMiddleware, async (req, res) => {
     req.params = { ...req.params, week: String(latest.week) };
     return fetchResultsForWeek(latest.week, res);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching latest results:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1575,7 +1579,8 @@ router.get('/results/:week', authMiddleware, async (req, res) => {
     const weekNum = parseInt(req.params.week);
     await fetchResultsForWeek(weekNum, res);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching results:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1616,97 +1621,100 @@ async function fetchResultsForWeek(weekNum, res) {
 }
 
 // GET /api/leagues/:leagueId/activity
-// Returns a chronological feed of recent league events
 router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
-  const { leagueId } = req.params;
-  const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+  try {
+    const { leagueId } = req.params;
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
 
-  const member = await prisma.leagueMember.findUnique({
-    where: { leagueId_userId: { leagueId, userId: req.user.id } },
-  });
-  if (!member) return res.status(403).json({ error: 'Not a member of this league' });
-
-  // Gather events from multiple sources in parallel
-  const [recentTeams, recentResults, recentMessages, members] = await Promise.all([
-    // Recent team submissions
-    prisma.weeklyTeam.findMany({
-      where: { leagueId },
-      orderBy: { updatedAt: 'desc' },
-      take: limit,
-      include: { user: { select: { id: true, name: true } } },
-    }),
-    // Rounds with results available
-    prisma.raceResult.findMany({
-      where: { leagueId },
-      distinct: ['week'],
-      orderBy: { week: 'desc' },
-      take: 5,
-      select: { week: true, createdAt: true },
-    }),
-    // Recent chat messages
-    prisma.leagueMessage.findMany({
-      where: { leagueId },
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      include: { user: { select: { id: true, name: true } } },
-    }),
-    // League members (for join events)
-    prisma.leagueMember.findMany({
-      where: { leagueId },
-      orderBy: { joinedAt: 'desc' },
-      take: 5,
-      include: { user: { select: { id: true, name: true } } },
-    }),
-  ]);
-
-  const events = [];
-
-  for (const team of recentTeams) {
-    events.push({
-      id: `team-${team.id}`,
-      type: 'team_submitted',
-      title: `${team.user.name} submitted their Round ${team.week} team`,
-      userId: team.user.id,
-      userName: team.user.name,
-      week: team.week,
-      timestamp: team.updatedAt.toISOString(),
+    const member = await prisma.leagueUser.findUnique({
+      where: { userId_leagueId: { userId: req.user.id, leagueId } },
     });
-  }
+    if (!member) return res.status(403).json({ error: 'Not a member of this league' });
 
-  for (const result of recentResults) {
-    events.push({
-      id: `result-${leagueId}-${result.week}`,
-      type: 'results_imported',
-      title: `Round ${result.week} results are in`,
-      week: result.week,
-      timestamp: result.createdAt.toISOString(),
-    });
-  }
+    const [recentTeams, recentResults, recentMessages, members] = await Promise.all([
+      // Recent team submissions
+      prisma.userWeeklyTeam.findMany({
+        where: { leagueId },
+        orderBy: { updatedAt: 'desc' },
+        take: limit,
+        include: { user: { select: { id: true, name: true } } },
+      }),
+      // Rounds with results available
+      prisma.raceResult.findMany({
+        where: { leagueId },
+        distinct: ['week'],
+        orderBy: { week: 'desc' },
+        take: 5,
+        select: { week: true, createdAt: true },
+      }),
+      // Recent chat messages
+      prisma.leagueMessage.findMany({
+        where: { leagueId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        include: { user: { select: { id: true, name: true } } },
+      }),
+      // League members (for join events)
+      prisma.leagueUser.findMany({
+        where: { leagueId },
+        orderBy: { joinedAt: 'desc' },
+        take: 5,
+        include: { user: { select: { id: true, name: true } } },
+      }),
+    ]);
 
-  for (const msg of recentMessages) {
-    events.push({
-      id: `msg-${msg.id}`,
-      type: 'chat_message',
-      title: `${msg.user.name}: ${msg.content.length > 60 ? msg.content.slice(0, 57) + '…' : msg.content}`,
-      userId: msg.user.id,
-      userName: msg.user.name,
-      timestamp: msg.createdAt.toISOString(),
-    });
-  }
+    const events = [];
 
-  for (const m of members) {
-    events.push({
-      id: `join-${m.userId}`,
-      type: 'member_joined',
-      title: `${m.user.name} joined the league`,
-      userId: m.user.id,
-      userName: m.user.name,
-      timestamp: m.joinedAt.toISOString(),
-    });
-  }
+    for (const team of recentTeams) {
+      events.push({
+        id: `team-${team.id}`,
+        type: 'team_submitted',
+        title: `${team.user.name} submitted their Round ${team.week} team`,
+        userId: team.user.id,
+        userName: team.user.name,
+        week: team.week,
+        timestamp: team.updatedAt.toISOString(),
+      });
+    }
 
-  events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  res.json({ events: events.slice(0, limit) });
+    for (const result of recentResults) {
+      events.push({
+        id: `result-${leagueId}-${result.week}`,
+        type: 'results_imported',
+        title: `Round ${result.week} results are in`,
+        week: result.week,
+        timestamp: result.createdAt.toISOString(),
+      });
+    }
+
+    for (const msg of recentMessages) {
+      events.push({
+        id: `msg-${msg.id}`,
+        type: 'chat_message',
+        title: `${msg.user.name}: ${msg.content.length > 60 ? msg.content.slice(0, 57) + '…' : msg.content}`,
+        userId: msg.user.id,
+        userName: msg.user.name,
+        timestamp: msg.createdAt.toISOString(),
+      });
+    }
+
+    for (const m of members) {
+      events.push({
+        id: `join-${m.userId}`,
+        type: 'member_joined',
+        title: `${m.user.name} joined the league`,
+        userId: m.user.id,
+        userName: m.user.name,
+        timestamp: m.joinedAt.toISOString(),
+      });
+    }
+
+    events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    res.json({ events: events.slice(0, limit) });
+  } catch (error) {
+    console.error('Error fetching activity feed:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 // ============ OPTIMAL TEAM (HINDSIGHT) ============

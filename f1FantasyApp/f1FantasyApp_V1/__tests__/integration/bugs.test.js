@@ -148,6 +148,70 @@ describe('POST /api/admin/races/:leagueId/:week — authorization', () => {
   });
 });
 
+describe('GET /api/leagues/:leagueId/activity', () => {
+  test('403: rejects requests from non-members', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/activity')
+      .set(auth());
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not a member/i);
+  });
+
+  test('200: returns events array containing team, result, and member_joined events', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ userId: 'user1', leagueId: 'lg1' });
+    prisma.userWeeklyTeam.findMany.mockResolvedValue([{
+      id: 'team1', week: 2, updatedAt: new Date('2026-04-01T12:00:00Z'),
+      user: { id: 'user1', name: 'Alice' },
+    }]);
+    prisma.raceResult.findMany.mockResolvedValue([{
+      week: 1, createdAt: new Date('2026-03-20T16:00:00Z'),
+    }]);
+    prisma.leagueMessage.findMany.mockResolvedValue([]);
+    prisma.leagueUser.findMany.mockResolvedValue([{
+      userId: 'user2',
+      joinedAt: new Date('2026-03-10T10:00:00Z'),
+      user: { id: 'user2', name: 'Bob' },
+    }]);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/activity')
+      .set(auth());
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.events)).toBe(true);
+    const types = res.body.events.map(e => e.type);
+    expect(types).toContain('team_submitted');
+    expect(types).toContain('results_imported');
+    expect(types).toContain('member_joined');
+  });
+
+  test('200: includes chat_message events when messages exist', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ userId: 'user1', leagueId: 'lg1' });
+    prisma.userWeeklyTeam.findMany.mockResolvedValue([]);
+    prisma.raceResult.findMany.mockResolvedValue([]);
+    prisma.leagueMessage.findMany.mockResolvedValue([{
+      id: 'msg1',
+      content: 'Great race everyone!',
+      createdAt: new Date('2026-04-02T09:00:00Z'),
+      user: { id: 'user1', name: 'Alice' },
+    }]);
+    prisma.leagueUser.findMany.mockResolvedValue([]);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/activity')
+      .set(auth());
+
+    expect(res.status).toBe(200);
+    const chatEvents = res.body.events.filter(e => e.type === 'chat_message');
+    expect(chatEvents.length).toBeGreaterThan(0);
+    expect(chatEvents[0].title).toContain('Alice');
+    expect(chatEvents[0].userId).toBe('user1');
+  });
+});
+
 // ─── Bug: GET /api/leagues/stats triple_captain chip was ignored —
 // always applied 2× captain bonus regardless of chip used.
 describe('GET /api/leagues/:leagueId/stats — triple_captain chip applied correctly', () => {
