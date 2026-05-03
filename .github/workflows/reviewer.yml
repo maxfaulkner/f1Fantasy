@@ -1,8 +1,6 @@
 name: Claude Reviewer
 
 on:
-  pull_request:
-    types: [opened, synchronize]
   repository_dispatch:
     types: [review-requested]
 
@@ -14,15 +12,7 @@ permissions:
 
 jobs:
   review:
-    # Allow both pull_request events (swarm-labeled PRs) and explicit review-requested dispatches
-    if: |
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'swarm-implementation')
-      ) || (
-        github.event_name == 'repository_dispatch' &&
-        github.event.action == 'review-requested'
-      )
+    if: github.event_name == 'repository_dispatch' && github.event.action == 'review-requested'
     runs-on: ubuntu-latest
     steps:
       - name: Resolve PR number and branch

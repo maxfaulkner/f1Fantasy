@@ -47,6 +47,21 @@ jobs:
           claude_args: |
             --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git checkout:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(git branch:*),Bash(gh issue view:*),Bash(gh issue list:*),Bash(gh pr create:*),Bash(gh pr edit:*),Bash(gh pr comment:*),Bash(gh pr view:*),Bash(npm test:*),Bash(npm run:*)"
 
+      - name: Notify reviewer that PR is ready
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr=$(gh pr list --repo ${{ github.repository }} --head "swarm/issue-${{ github.event.issue.number }}-*" --json number,headRefName --jq 'first | {number, branch: .headRefName}')
+          pr_number=$(echo "$pr" | jq -r '.number // empty')
+          pr_branch=$(echo "$pr" | jq -r '.branch // empty')
+          if [ -n "$pr_number" ]; then
+            gh api repos/${{ github.repository }}/dispatches \
+              --field event_type=review-requested \
+              --field "client_payload[pr_number]=$pr_number" \
+              --field "client_payload[branch]=$pr_branch"
+          fi
+
   resume-pr:
     # Fires when a human (non-bot) comments exactly /resume on a swarm PR
     if: |
