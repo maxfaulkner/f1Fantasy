@@ -52,11 +52,11 @@ describe('GET /api/profile', () => {
     prisma.user.findUnique.mockResolvedValue(BASE_USER);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([BASE_TEAM]);
     prisma.raceResult.findMany.mockResolvedValue([
-      { driverId: 'd1', points: 25 },
-      { driverId: 'd2', points: 18 },
+      { driverId: 'd1', points: 25, leagueId: 'lg1', week: 1 },
+      { driverId: 'd2', points: 18, leagueId: 'lg1', week: 1 },
     ]);
     prisma.constructorRaceResult.findMany.mockResolvedValue([
-      { totalPoints: 43 },
+      { totalPoints: 43, leagueId: 'lg1', week: 1, constructorId: 'c1' },
     ]);
 
     const res = await request(app).get('/api/profile').set(AUTH());
@@ -80,7 +80,7 @@ describe('GET /api/profile', () => {
     prisma.userWeeklyTeam.findMany.mockResolvedValue([
       { ...BASE_TEAM, chipUsed: 'wildcard' },
     ]);
-    prisma.raceResult.findMany.mockResolvedValue([{ driverId: 'd1', points: 10 }]);
+    prisma.raceResult.findMany.mockResolvedValue([{ driverId: 'd1', points: 10, leagueId: 'lg1', week: 1 }]);
     prisma.constructorRaceResult.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/api/profile').set(AUTH());
@@ -99,6 +99,12 @@ describe('GET /api/profile', () => {
     expect(res.body.stats.roundsPlayed).toBe(0);
     expect(res.body.stats.worstRoundPoints).toBe(0);
     expect(res.body.stats.favouriteDriver).toBeNull();
+  });
+
+  test('400: rejects non-numeric season param', async () => {
+    prisma.user.findUnique.mockResolvedValue(BASE_USER);
+    const res = await request(app).get('/api/profile?season=notanumber').set(AUTH());
+    expect(res.status).toBe(400);
   });
 
   test('200: ?season= param filters stats to specified season', async () => {

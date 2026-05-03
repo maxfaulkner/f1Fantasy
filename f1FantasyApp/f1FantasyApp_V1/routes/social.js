@@ -93,10 +93,6 @@ router.get('/achievements', async (req, res) => {
 
 // ============ PROFILE ============
 
-/**
- * Compute season stats for a user given a set of league IDs.
- * Returns totalPoints, roundsPlayed, bestRound, worstRound, favouriteDriver, chipsUsed.
- */
 async function computeSeasonStats(userId, leagueIds) {
   if (leagueIds.length === 0) {
     return { totalPoints: 0, roundsPlayed: 0, bestRoundPoints: 0, bestRoundWeek: null, worstRoundPoints: 0, worstRoundWeek: null, favouriteDriver: null, chipsUsed: [] };
@@ -110,6 +106,35 @@ async function computeSeasonStats(userId, leagueIds) {
     },
   });
 
+  if (allTeams.length === 0) {
+    return { totalPoints: 0, roundsPlayed: 0, bestRoundPoints: 0, bestRoundWeek: null, worstRoundPoints: 0, worstRoundWeek: null, favouriteDriver: null, chipsUsed: [] };
+  }
+
+  const allLeagueIds = [...new Set(allTeams.map(t => t.leagueId))];
+  const allWeeks = [...new Set(allTeams.map(t => t.week))];
+  const allDriverIds = [...new Set(allTeams.flatMap(t => t.drivers.map(d => d.driverId)))];
+  const allConstructorIds = [...new Set(allTeams.flatMap(t => t.constructors.map(c => c.constructorId)))];
+
+  const [allRaceResults, allConResults] = await Promise.all([
+    prisma.raceResult.findMany({
+      where: { leagueId: { in: allLeagueIds }, week: { in: allWeeks }, driverId: { in: allDriverIds } },
+    }),
+    allConstructorIds.length > 0 ? prisma.constructorRaceResult.findMany({
+      where: { leagueId: { in: allLeagueIds }, week: { in: allWeeks }, constructorId: { in: allConstructorIds } },
+    }) : Promise.resolve([]),
+  ]);
+
+  const raceResultLookup = new Map();
+  for (const r of allRaceResults) {
+    raceResultLookup.set(`${r.leagueId}|${r.week}|${r.driverId}`, r);
+  }
+  const conResultLookup = new Map();
+  for (const r of allConResults) {
+    const key = `${r.leagueId}|${r.week}|${r.constructorId}`;
+    if (!conResultLookup.has(key)) conResultLookup.set(key, []);
+    conResultLookup.get(key).push(r);
+  }
+
   let totalPoints = 0;
   let roundsPlayed = 0;
   let bestRoundPoints = 0;
@@ -120,13 +145,12 @@ async function computeSeasonStats(userId, leagueIds) {
   const chipsUsed = [];
 
   for (const team of allTeams) {
-    const driverIds = team.drivers.map(d => d.driverId);
-    const results = await prisma.raceResult.findMany({
-      where: { leagueId: team.leagueId, week: team.week, driverId: { in: driverIds } },
-    });
-    const conResults = team.constructors[0] ? await prisma.constructorRaceResult.findMany({
-      where: { leagueId: team.leagueId, week: team.week, constructorId: team.constructors[0].constructorId },
-    }) : [];
+    const results = team.drivers
+      .map(d => raceResultLookup.get(`${team.leagueId}|${team.week}|${d.driverId}`))
+      .filter(Boolean);
+    const conResults = team.constructors[0]
+      ? (conResultLookup.get(`${team.leagueId}|${team.week}|${team.constructors[0].constructorId}`) || [])
+      : [];
 
     for (const d of team.drivers) {
       if (!driverFreq[d.driverId]) driverFreq[d.driverId] = { name: d.driver.name, count: 0 };
@@ -202,7 +226,14 @@ router.get('/profile', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const availableSeasons = [...new Set(user.leagues.map(l => l.league.season))].sort((a, b) => b - a);
-    const currentSeason = req.query.season ? parseInt(req.query.season) : (availableSeasons[0] || new Date().getFullYear());
+    let currentSeason;
+    if (req.query.season !== undefined) {
+      const parsed = parseInt(req.query.season, 10);
+      if (isNaN(parsed)) return res.status(400).json({ error: 'Invalid season parameter' });
+      currentSeason = parsed;
+    } else {
+      currentSeason = availableSeasons[0] || new Date().getFullYear();
+    }
     const seasonLeagueIds = user.leagues.filter(l => l.league.season === currentSeason).map(l => l.leagueId);
 
     const seasonStats = await computeSeasonStats(userId, seasonLeagueIds);
@@ -213,7 +244,7 @@ router.get('/profile', async (req, res) => {
       currentSeason,
       stats: {
         ...seasonStats,
-        leagueCount: user.leagues.length,
+        leagueCount: seasonLeagueIds.length,
         achievementCount: user.achievements.length,
       },
     });
@@ -287,7 +318,14 @@ router.get('/profile/:userId', async (req, res) => {
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const availableSeasons = [...new Set(user.leagues.map(l => l.league.season))].sort((a, b) => b - a);
-    const currentSeason = req.query.season ? parseInt(req.query.season) : (availableSeasons[0] || new Date().getFullYear());
+    let currentSeason;
+    if (req.query.season !== undefined) {
+      const parsed = parseInt(req.query.season, 10);
+      if (isNaN(parsed)) return res.status(400).json({ error: 'Invalid season parameter' });
+      currentSeason = parsed;
+    } else {
+      currentSeason = availableSeasons[0] || new Date().getFullYear();
+    }
     const seasonLeagueIds = user.leagues.filter(l => l.league.season === currentSeason).map(l => l.leagueId);
 
     const seasonStats = await computeSeasonStats(req.params.userId, seasonLeagueIds);
@@ -298,7 +336,7 @@ router.get('/profile/:userId', async (req, res) => {
       currentSeason,
       stats: {
         ...seasonStats,
-        leagueCount: user.leagues.length,
+        leagueCount: seasonLeagueIds.length,
         achievementCount: user.achievements.length,
       },
     });
