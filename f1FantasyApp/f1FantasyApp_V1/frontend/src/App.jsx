@@ -14,6 +14,7 @@ import ViewTeam from './pages/ViewTeam';
 import Chat from './pages/Chat';
 import Stats from './pages/Stats';
 import Profile from './pages/Profile';
+import PublicProfile from './pages/PublicProfile';
 import PublicLeagues from './pages/PublicLeagues';
 import LeagueMembers from './pages/LeagueMembers';
 import Transfers from './pages/Transfers';
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/live" element={<Protected><LiveRace /></Protected>} />
             <Route path="/calendar" element={<Protected><Calendar /></Protected>} />
             <Route path="/profile" element={<Protected><Profile /></Protected>} />
+            <Route path="/profile/:userId" element={<Protected><PublicProfile /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>

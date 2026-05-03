@@ -102,9 +102,9 @@ export const api = {
   getAchievements: () => request('GET', '/api/achievements'),
 
   // Profile
-  getProfile: () => request('GET', '/api/profile'),
+  getProfile: (season) => request('GET', season ? `/api/profile?season=${season}` : '/api/profile'),
   updateProfile: (data) => request('PUT', '/api/profile', data),
-  getPublicProfile: (userId) => request('GET', `/api/profile/${userId}`),
+  getPublicProfile: (userId, season) => request('GET', season ? `/api/profile/${userId}?season=${season}` : `/api/profile/${userId}`),
 
   // H2H
   getH2HMatchups: (leagueId) => request('GET', `/api/leagues/${leagueId}/h2h`),
