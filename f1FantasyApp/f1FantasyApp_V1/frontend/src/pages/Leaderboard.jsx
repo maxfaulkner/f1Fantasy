@@ -469,11 +469,149 @@ export default function Leaderboard() {
         )}
       </div>
 
+      {hasResults && standings.length > 0 && (
+        <SeasonPointsChart standings={standings} />
+      )}
+
       {hasResults && (
         <p style={{ marginTop: 12, fontSize: 11, color: '#3f3f46', textAlign: 'center' }}>
           Tie-breaker: total race wins · Points based on finishing position
         </p>
       )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Season points trajectory chart ─────────────────────────── */
+const CHART_COLORS = [
+  '#e10600', '#3671C6', '#FF8000', '#27F4D2', '#229971',
+  '#FF87BC', '#64C4FF', '#6692FF', '#fbbf24', '#22c55e',
+];
+
+function SeasonPointsChart({ standings }) {
+  const [hoveredPlayer, setHoveredPlayer] = useState(null);
+  const [tooltip, setTooltip] = useState(null);
+
+  const allRounds = [...new Set(
+    standings.flatMap(s => Object.keys(s.roundPoints || {}).map(Number))
+  )].sort((a, b) => a - b);
+
+  if (allRounds.length === 0) return null;
+
+  const playerSeries = standings.map((player, i) => {
+    const color = player.avatarColor || CHART_COLORS[i % CHART_COLORS.length];
+    let cum = 0;
+    const pts = allRounds.map(round => {
+      const rp = player.roundPoints?.[round] ?? 0;
+      cum += rp;
+      return { round, cumulative: cum, roundPts: player.roundPoints?.[round] ?? null };
+    });
+    return { userId: player.userId, userName: player.userName, color, pts };
+  });
+
+  const W = 560, H = 180;
+  const pad = { top: 14, right: 14, bottom: 24, left: 40 };
+  const iW = W - pad.left - pad.right;
+  const iH = H - pad.top - pad.bottom;
+  const maxCum = Math.max(...playerSeries.flatMap(p => p.pts.map(pt => pt.cumulative)), 1);
+  const xScale = idx => pad.left + (idx / Math.max(allRounds.length - 1, 1)) * iW;
+  const yScale = v => pad.top + iH - (v / maxCum) * iH;
+  const yTicks = [0, Math.round(maxCum / 2), maxCum];
+
+  return (
+    <div style={{
+      background: '#18181b', border: '1px solid rgba(255,255,255,0.06)',
+      borderRadius: 14, padding: '20px 20px 16px', marginTop: 24,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 16, color: 'rgba(255,255,255,0.8)' }}>
+        📈 Season Points Trajectory
+      </div>
+
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ width: '100%', height: 'auto', overflow: 'visible', display: 'block' }}
+        onMouseLeave={() => { setHoveredPlayer(null); setTooltip(null); }}
+      >
+        {yTicks.map(t => (
+          <g key={t}>
+            <line x1={pad.left} y1={yScale(t)} x2={pad.left + iW} y2={yScale(t)} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
+            <text x={pad.left - 5} y={yScale(t) + 3} textAnchor="end" fontSize="8" fill="rgba(255,255,255,0.3)">{t}</text>
+          </g>
+        ))}
+
+        {allRounds.map((r, i) => (
+          <text key={r} x={xScale(i)} y={H - 6} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.3)">R{r}</text>
+        ))}
+
+        {playerSeries.map(player => {
+          const isHovered = hoveredPlayer === player.userId;
+          const isDimmed = hoveredPlayer !== null && !isHovered;
+          const linePoints = player.pts.map((pt, i) => `${xScale(i)},${yScale(pt.cumulative)}`).join(' ');
+          return (
+            <g key={player.userId} onMouseEnter={() => setHoveredPlayer(player.userId)}>
+              <polyline
+                points={linePoints}
+                fill="none"
+                stroke={player.color}
+                strokeWidth={isHovered ? 2.5 : 1.5}
+                opacity={isDimmed ? 0.15 : 1}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {/* Wide invisible hit area */}
+              <polyline points={linePoints} fill="none" stroke="transparent" strokeWidth={16} />
+              {player.pts.map((pt, i) => (
+                <circle
+                  key={i}
+                  cx={xScale(i)}
+                  cy={yScale(pt.cumulative)}
+                  r={isHovered ? 4 : 2.5}
+                  fill={player.color}
+                  opacity={isDimmed ? 0.15 : 1}
+                  style={{ cursor: 'crosshair' }}
+                  onMouseEnter={() => setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(i), svgY: yScale(pt.cumulative) })}
+                  onMouseLeave={() => setTooltip(null)}
+                />
+              ))}
+            </g>
+          );
+        })}
+
+        {tooltip && (() => {
+          const tx = Math.min(Math.max(tooltip.svgX - 44, 2), W - 92);
+          const ty = tooltip.svgY - 46 < pad.top ? tooltip.svgY + 8 : tooltip.svgY - 46;
+          const sign = tooltip.roundPts != null && tooltip.roundPts >= 0 ? '+' : '';
+          return (
+            <g pointerEvents="none">
+              <rect x={tx} y={ty} width={88} height={38} rx={5} fill="#1c1c1f" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
+              <text x={tx + 44} y={ty + 14} textAnchor="middle" fontSize="9" fill={tooltip.player.color} fontWeight="700">{tooltip.player.userName}</text>
+              <text x={tx + 44} y={ty + 27} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)">
+                {tooltip.cumulative} pts · {tooltip.roundPts != null ? `${sign}${tooltip.roundPts}` : 'N/A'} R{tooltip.round}
+              </text>
+            </g>
+          );
+        })()}
+      </svg>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 12 }}>
+        {playerSeries.map(player => (
+          <button
+            key={player.userId}
+            onMouseEnter={() => setHoveredPlayer(player.userId)}
+            onMouseLeave={() => setHoveredPlayer(null)}
+            onClick={() => setHoveredPlayer(prev => prev === player.userId ? null : player.userId)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              opacity: hoveredPlayer !== null && hoveredPlayer !== player.userId ? 0.4 : 1,
+              cursor: 'pointer', transition: 'opacity 0.15s',
+              background: 'none', border: 'none', padding: 0, fontFamily: 'inherit',
+            }}
+          >
+            <div style={{ width: 16, height: 3, borderRadius: 2, background: player.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: '#a1a1aa', whiteSpace: 'nowrap' }}>{player.userName}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

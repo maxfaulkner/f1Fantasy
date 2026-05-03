@@ -99,4 +99,31 @@ describe('Leaderboard page', () => {
       expect(screen.getByText(/import results/i)).toBeInTheDocument();
     });
   });
+
+  test('renders season points trajectory chart when results exist', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
+        { userId: 'user2', userName: 'Bob', totalPoints: 120, rank: 2, totalWins: 1, rankDelta: 0, roundPoints: { 1: 60, 2: 60 } },
+      ],
+      latestRound: 2,
+    });
+    renderLeaderboard();
+    await waitFor(() => {
+      expect(screen.getByText(/season points trajectory/i)).toBeInTheDocument();
+    });
+  });
+
+  test('does not render season points trajectory chart when no results', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 0, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
+      ],
+      latestRound: 1,
+    });
+    renderLeaderboard();
+    await waitFor(() => {
+      expect(screen.queryByText(/season points trajectory/i)).not.toBeInTheDocument();
+    });
+  });
 });
