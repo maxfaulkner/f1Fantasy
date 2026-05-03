@@ -469,7 +469,7 @@ export default function Leaderboard() {
         )}
       </div>
 
-      {hasResults && standings.length > 0 && (
+      {hasResults && (
         <SeasonPointsChart standings={standings} />
       )}
 
@@ -518,6 +518,9 @@ function SeasonPointsChart({ standings }) {
   const xScale = idx => pad.left + (idx / Math.max(allRounds.length - 1, 1)) * iW;
   const yScale = v => pad.top + iH - (v / maxCum) * iH;
   const yTicks = [0, Math.round(maxCum / 2), maxCum];
+  const tooltipTx = tooltip != null ? Math.min(Math.max(tooltip.svgX - 44, 2), W - 92) : 0;
+  const tooltipTy = tooltip != null ? (tooltip.svgY - 46 < pad.top ? tooltip.svgY + 8 : tooltip.svgY - 46) : 0;
+  const tooltipSign = tooltip != null && tooltip.roundPts != null && tooltip.roundPts >= 0 ? '+' : '';
 
   return (
     <div style={{
@@ -578,20 +581,15 @@ function SeasonPointsChart({ standings }) {
           );
         })}
 
-        {tooltip && (() => {
-          const tx = Math.min(Math.max(tooltip.svgX - 44, 2), W - 92);
-          const ty = tooltip.svgY - 46 < pad.top ? tooltip.svgY + 8 : tooltip.svgY - 46;
-          const sign = tooltip.roundPts != null && tooltip.roundPts >= 0 ? '+' : '';
-          return (
-            <g pointerEvents="none">
-              <rect x={tx} y={ty} width={88} height={38} rx={5} fill="#1c1c1f" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
-              <text x={tx + 44} y={ty + 14} textAnchor="middle" fontSize="9" fill={tooltip.player.color} fontWeight="700">{tooltip.player.userName}</text>
-              <text x={tx + 44} y={ty + 27} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)">
-                {tooltip.cumulative} pts · {tooltip.roundPts != null ? `${sign}${tooltip.roundPts}` : 'N/A'} R{tooltip.round}
-              </text>
-            </g>
-          );
-        })()}
+        {tooltip && (
+          <g pointerEvents="none">
+            <rect x={tooltipTx} y={tooltipTy} width={88} height={38} rx={5} fill="#1c1c1f" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
+            <text x={tooltipTx + 44} y={tooltipTy + 14} textAnchor="middle" fontSize="9" fill={tooltip.player.color} fontWeight="700">{tooltip.player.userName}</text>
+            <text x={tooltipTx + 44} y={tooltipTy + 27} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)">
+              {tooltip.cumulative} pts · {tooltip.roundPts != null ? `${tooltipSign}${tooltip.roundPts}` : 'N/A'} R{tooltip.round}
+            </text>
+          </g>
+        )}
       </svg>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 12 }}>
