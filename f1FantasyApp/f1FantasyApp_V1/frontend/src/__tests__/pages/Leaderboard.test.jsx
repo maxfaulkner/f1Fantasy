@@ -1,5 +1,5 @@
 // src/__tests__/pages/Leaderboard.test.jsx
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Leaderboard from '../../pages/Leaderboard';
 
@@ -97,6 +97,78 @@ describe('Leaderboard page', () => {
     renderLeaderboard();
     await waitFor(() => {
       expect(screen.getByText(/import results/i)).toBeInTheDocument();
+    });
+  });
+
+  test('renders season points trajectory chart when results exist', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
+        { userId: 'user2', userName: 'Bob', totalPoints: 120, rank: 2, totalWins: 1, rankDelta: 0, roundPoints: { 1: 60, 2: 60 } },
+      ],
+      latestRound: 2,
+    });
+    renderLeaderboard();
+    await waitFor(() => {
+      expect(screen.getByText(/season points trajectory/i)).toBeInTheDocument();
+    });
+  });
+
+  test('does not render season points trajectory chart when roundPoints is empty (old-records migration path)', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 50, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
+      ],
+      latestRound: 1,
+    });
+    renderLeaderboard();
+    await waitFor(() => {
+      expect(screen.queryByText(/season points trajectory/i)).not.toBeInTheDocument();
+    });
+  });
+
+  test('clicking a legend button toggles highlight and dims other players', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
+        { userId: 'user2', userName: 'Bob', totalPoints: 120, rank: 2, totalWins: 1, rankDelta: 0, roundPoints: { 1: 60, 2: 60 } },
+      ],
+      latestRound: 2,
+    });
+    renderLeaderboard();
+    await waitFor(() => screen.getByText(/season points trajectory/i));
+
+    // Legend spans sit inside buttons; podium/table names are in divs/tds
+    const aliceBtn = screen.getAllByText('Alice').map(el => el.closest('button')).find(Boolean);
+    const bobBtn = screen.getAllByText('Bob').map(el => el.closest('button')).find(Boolean);
+
+    fireEvent.click(aliceBtn);
+    expect(bobBtn).toHaveStyle('opacity: 0.4');
+
+    // Clicking Alice again toggles off — both back to full opacity
+    fireEvent.click(aliceBtn);
+    expect(bobBtn).toHaveStyle('opacity: 1');
+  });
+
+  test('hovering a data point shows a tooltip with cumulative pts', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
+        { userId: 'user2', userName: 'Bob', totalPoints: 120, rank: 2, totalWins: 1, rankDelta: 0, roundPoints: { 1: 60, 2: 60 } },
+      ],
+      latestRound: 2,
+    });
+    const { container } = renderLeaderboard();
+    await waitFor(() => screen.getByText(/season points trajectory/i));
+
+    const aliceR1 = container.querySelector('circle[data-userid="user1"][data-round="1"]');
+    expect(aliceR1).toBeInTheDocument();
+
+    fireEvent.mouseEnter(aliceR1);
+
+    await waitFor(() => {
+      const svg = container.querySelector('svg');
+      expect(within(svg).getByText('80 pts · +80 R1')).toBeInTheDocument();
     });
   });
 });
