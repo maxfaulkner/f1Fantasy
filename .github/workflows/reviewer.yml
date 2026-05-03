@@ -95,6 +95,7 @@ jobs:
         if: fromJson(steps.rounds.outputs.count) < 5
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: claude-haiku-4-5-20251001
           # Use GITHUB_TOKEN so reviewer acts as github-actions[bot], not claude[bot].
           # This allows formal APPROVE/REQUEST_CHANGES reviews on PRs opened by claude[bot].
           github_token: ${{ secrets.GITHUB_TOKEN }}
