@@ -27,7 +27,6 @@ export default function Leaderboard() {
   usePageTitle(leagueName ? `${leagueName} — Leaderboard` : 'Leaderboard');
 
   const hasResults = standings.some(s => s.totalPoints > 0);
-  const hasChartData = standings.some(s => Object.keys(s.roundPoints || {}).length > 0);
   const top3 = hasResults ? standings.slice(0, 3) : [];
 
   async function loadAll() {
@@ -470,7 +469,7 @@ export default function Leaderboard() {
         )}
       </div>
 
-      {hasChartData && (
+      {hasResults && (
         <SeasonPointsChart standings={standings} />
       )}
 
@@ -485,21 +484,6 @@ export default function Leaderboard() {
 }
 
 /* ── Season points trajectory chart ─────────────────────────── */
-function ChartTooltip({ tooltip, W, padTop }) {
-  const tx = Math.min(Math.max(tooltip.svgX - 44, 2), W - 92);
-  const ty = tooltip.svgY - 46 < padTop ? tooltip.svgY + 8 : tooltip.svgY - 46;
-  const sign = tooltip.roundPts > 0 ? '+' : '';
-  return (
-    <g pointerEvents="none">
-      <rect x={tx} y={ty} width={88} height={38} rx={5} fill="#1c1c1f" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
-      <text x={tx + 44} y={ty + 14} textAnchor="middle" fontSize="9" fill={tooltip.player.color} fontWeight="700">{tooltip.player.userName}</text>
-      <text x={tx + 44} y={ty + 27} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)">
-        {tooltip.cumulative} pts · {tooltip.roundPts != null ? `${sign}${tooltip.roundPts}` : 'N/A'} R{tooltip.round}
-      </text>
-    </g>
-  );
-}
-
 const CHART_COLORS = [
   '#e10600', '#3671C6', '#FF8000', '#27F4D2', '#229971',
   '#FF87BC', '#64C4FF', '#6692FF', '#fbbf24', '#22c55e',
@@ -512,8 +496,6 @@ function SeasonPointsChart({ standings }) {
   const allRounds = [...new Set(
     standings.flatMap(s => Object.keys(s.roundPoints || {}).map(Number))
   )].sort((a, b) => a - b);
-
-  if (allRounds.length === 0) return null;
 
   const playerSeries = standings.map((player, i) => {
     const color = player.avatarColor || CHART_COLORS[i % CHART_COLORS.length];
@@ -583,24 +565,44 @@ function SeasonPointsChart({ standings }) {
                 strokeLinejoin="round"
               />
               <polyline points={linePoints} fill="none" stroke="transparent" strokeWidth={16} />
-              {player.pts.map((pt, i) => (
-                <circle
-                  key={pt.round}
-                  cx={xScale(i)}
-                  cy={yScale(pt.cumulative)}
-                  r={isHovered ? 4 : 2.5}
-                  fill={player.color}
-                  opacity={isDimmed ? 0.15 : 1}
-                  style={{ cursor: 'crosshair' }}
-                  onMouseEnter={() => setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(i), svgY: yScale(pt.cumulative) })}
-                  onMouseLeave={() => setTooltip(null)}
-                />
-              ))}
             </g>
           );
         })}
+        {playerSeries.map(player => {
+          const isHovered = hoveredPlayer === player.userId;
+          const isDimmed = hoveredPlayer !== null && !isHovered;
+          return player.pts.map((pt, i) => (
+            <circle
+              key={`${player.userId}-${pt.round}`}
+              cx={xScale(i)}
+              cy={yScale(pt.cumulative)}
+              r={isHovered ? 4 : 2.5}
+              fill={player.color}
+              opacity={isDimmed ? 0.15 : 1}
+              style={{ cursor: 'crosshair' }}
+              onMouseEnter={() => {
+                setHoveredPlayer(player.userId);
+                setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(i), svgY: yScale(pt.cumulative) });
+              }}
+              onMouseLeave={() => setTooltip(null)}
+            />
+          ));
+        })}
 
-        {tooltip && <ChartTooltip tooltip={tooltip} W={W} padTop={pad.top} />}
+        {tooltip && (() => {
+          const tx = Math.min(Math.max(tooltip.svgX - 44, 2), W - 92);
+          const ty = tooltip.svgY - 46 < pad.top ? tooltip.svgY + 8 : tooltip.svgY - 46;
+          const sign = tooltip.roundPts > 0 ? '+' : '';
+          return (
+            <g pointerEvents="none">
+              <rect x={tx} y={ty} width={88} height={38} rx={5} fill="#1c1c1f" stroke="rgba(255,255,255,0.14)" strokeWidth="1" />
+              <text x={tx + 44} y={ty + 14} textAnchor="middle" fontSize="9" fill={tooltip.player.color} fontWeight="700">{tooltip.player.userName}</text>
+              <text x={tx + 44} y={ty + 27} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)">
+                {tooltip.cumulative} pts · {tooltip.roundPts != null ? `${sign}${tooltip.roundPts}` : 'N/A'} R{tooltip.round}
+              </text>
+            </g>
+          );
+        })()}
       </svg>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 12 }}>
