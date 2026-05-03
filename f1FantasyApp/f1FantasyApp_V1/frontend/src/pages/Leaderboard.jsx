@@ -497,6 +497,8 @@ function SeasonPointsChart({ standings }) {
     standings.flatMap(s => Object.keys(s.roundPoints || {}).map(Number))
   )].sort((a, b) => a - b);
 
+  if (allRounds.length === 0) return null;
+
   const playerSeries = standings.map((player, i) => {
     const color = player.avatarColor || CHART_COLORS[i % CHART_COLORS.length];
     let cum = 0;

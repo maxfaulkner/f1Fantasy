@@ -1,6 +1,5 @@
 // src/__tests__/pages/Leaderboard.test.jsx
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Leaderboard from '../../pages/Leaderboard';
 
@@ -129,7 +128,6 @@ describe('Leaderboard page', () => {
   });
 
   test('clicking a legend button toggles highlight and dims other players', async () => {
-    const user = userEvent.setup();
     mockGetLeaderboard.mockResolvedValue({
       standings: [
         { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
@@ -144,12 +142,13 @@ describe('Leaderboard page', () => {
     const aliceBtn = screen.getAllByText('Alice').map(el => el.closest('button')).find(Boolean);
     const bobBtn = screen.getAllByText('Bob').map(el => el.closest('button')).find(Boolean);
 
-    // Clicking Alice highlights her and dims Bob
-    await user.click(aliceBtn);
+    // fireEvent.click isolates the click handler without triggering mouseenter first,
+    // which would race with the toggle and leave hoveredPlayer null.
+    fireEvent.click(aliceBtn);
     expect(bobBtn.style.opacity).toBe('0.4');
 
     // Clicking Alice again toggles off — both back to full opacity
-    await user.click(aliceBtn);
+    fireEvent.click(aliceBtn);
     expect(bobBtn.style.opacity).toBe('1');
   });
 
