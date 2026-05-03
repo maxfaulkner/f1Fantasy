@@ -19,4 +19,3 @@ const authMiddleware = (req, res, next) => {
 };
 
 module.exports = authMiddleware;
-module.exports.JWT_SECRET = JWT_SECRET;

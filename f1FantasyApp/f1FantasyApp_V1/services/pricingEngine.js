@@ -1,7 +1,6 @@
 // services/pricingEngine.js
 const prisma = require('../prisma');
 const {
-  F1_POINTS,
   PRICING_PERF_WEIGHT,
   PRICING_MARKET_WEIGHT,
   MIN_DRIVER_PRICE,
@@ -93,7 +92,7 @@ async function calculateMarketPressure(driverId, leagueId, currentWeek) {
 
 /**
  * Update driver price based on race results
- * Formula: new_price = old_price × (1 + performance_delta × 0.15 + market_pressure × 0.08)
+ * Formula: new_price = old_price × (1 + performance_delta × PRICING_PERF_WEIGHT + market_pressure × PRICING_MARKET_WEIGHT)
  */
 async function updateDriverPrice(driver, finishingPosition, leagueId, currentWeek) {
   let oldPrice = await prisma.driverPrice.findUnique({
