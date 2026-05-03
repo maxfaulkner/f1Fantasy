@@ -187,6 +187,29 @@ describe('GET /api/leagues/:leagueId/activity', () => {
     expect(types).toContain('results_imported');
     expect(types).toContain('member_joined');
   });
+
+  test('200: includes chat_message events when messages exist', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ userId: 'user1', leagueId: 'lg1' });
+    prisma.userWeeklyTeam.findMany.mockResolvedValue([]);
+    prisma.raceResult.findMany.mockResolvedValue([]);
+    prisma.leagueMessage.findMany.mockResolvedValue([{
+      id: 'msg1',
+      content: 'Great race everyone!',
+      createdAt: new Date('2026-04-02T09:00:00Z'),
+      user: { id: 'user1', name: 'Alice' },
+    }]);
+    prisma.leagueUser.findMany.mockResolvedValue([]);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/activity')
+      .set(auth());
+
+    expect(res.status).toBe(200);
+    const chatEvents = res.body.events.filter(e => e.type === 'chat_message');
+    expect(chatEvents.length).toBeGreaterThan(0);
+    expect(chatEvents[0].title).toContain('Alice');
+    expect(chatEvents[0].userId).toBe('user1');
+  });
 });
 
 // ─── Bug: GET /api/leagues/stats triple_captain chip was ignored —

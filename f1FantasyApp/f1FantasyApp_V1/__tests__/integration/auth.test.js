@@ -3,11 +3,6 @@ const request = require('supertest');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-jest.mock('../../jobs/weeklyRaceImportJob', () => ({
-  checkAndImportPastRounds: jest.fn().mockResolvedValue(undefined),
-  startWeeklyRaceImportJob: jest.fn().mockResolvedValue(undefined),
-}));
-
 const app = require('../../app');
 const prisma = require('../../prisma');
 
