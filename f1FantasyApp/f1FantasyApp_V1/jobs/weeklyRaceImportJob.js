@@ -68,7 +68,9 @@ async function startWeeklyRaceImportJob() {
       if (lockTime > now) {
         schedule.scheduleJob(`lock-r${round}`, lockTime, async () => {
           console.log(`Locking teams for round ${round}...`);
-          await lockTeamsForRound(round);
+          await lockTeamsForRound(round).catch(err =>
+            console.error(`Round ${round} team lock failed:`, err.message)
+          );
         });
         console.log(`  Round ${round}: lock at ${lockTime.toUTCString()}`);
       } else {

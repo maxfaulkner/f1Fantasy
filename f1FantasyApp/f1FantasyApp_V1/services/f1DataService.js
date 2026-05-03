@@ -2,6 +2,7 @@
 const fetch = require('node-fetch');
 const prisma = require('../prisma');
 const mailer = require('./mailer');
+const { F1_POINTS, SPRINT_POINTS } = require('../constants');
 
 const ERGAST_API = 'https://api.jolpi.ca/ergast/f1'; // Jolpica (Ergast replacement, same URL structure)
 
@@ -153,11 +154,6 @@ async function mapF1DriverToLocal(f1Id, season, round) {
 async function processRaceResults(leagueId, raceWeek, season, results, { isSprint = false, sprintResults = null } = {}) {
   console.log(`Processing ${results.length} ${isSprint ? 'sprint' : 'race'} results for league ${leagueId}, week ${raceWeek}`);
 
-  const F1_POINTS = {
-    1: 25, 2: 18, 3: 15, 4: 12, 5: 10,
-    6: 8,  7: 6,  8: 4,  9: 2,  10: 1,
-  };
-  const SPRINT_POINTS = { 1: 8, 2: 7, 3: 6, 4: 5, 5: 4, 6: 3, 7: 2, 8: 1 };
   const pointsTable = isSprint ? SPRINT_POINTS : F1_POINTS;
 
   // Build sprint bonus map (extra points to add when processing a main race on a sprint weekend)

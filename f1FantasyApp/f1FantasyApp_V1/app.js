@@ -7,7 +7,9 @@ const apiRoutes = require('./routes/api');
 const chatRoutes = require('./routes/chat');
 const socialRoutes = require('./routes/social');
 const authMiddleware = require('./middleware/auth');
+const { JWT_SECRET } = authMiddleware;
 const rateLimit = require('express-rate-limit');
+const raceImportJob = require('./jobs/weeklyRaceImportJob');
 
 const app = express();
 
@@ -73,7 +75,8 @@ app.post('/auth/register', async (req, res) => {
     if (error.code === 'P2002') {
       return res.status(400).json({ error: 'Email already exists' });
     }
-    res.status(500).json({ error: error.message });
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -96,7 +99,7 @@ app.post('/auth/login', async (req, res) => {
     const jwt = require('jsonwebtoken');
     const token = jwt.sign(
       { id: user.id, email: user.email },
-      process.env.JWT_SECRET || 'your-secret-key',
+      JWT_SECRET,
       { expiresIn: '30d' }
     );
     res.json({
@@ -104,23 +107,33 @@ app.post('/auth/login', async (req, res) => {
       token,
       user: { id: user.id, email: user.email, name: user.name },
     });
+
+    // Non-blocking: check if any past rounds are missing results and import them
+    raceImportJob.checkAndImportPastRounds().catch(err =>
+      console.error('Catch-up import check failed:', err.message)
+    );
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 app.get('/admin/races/:leagueId/:week', authMiddleware, async (req, res) => {
   try {
     const { leagueId, week } = req.params;
+    const weekNum = parseInt(week, 10);
+    if (isNaN(weekNum)) {
+      return res.status(400).json({ error: 'Invalid week parameter' });
+    }
     const prisma = require('./prisma');
     const league = await prisma.league.findUnique({ where: { id: leagueId } });
     if (!league) return res.status(404).json({ error: 'League not found' });
     const drivers = await prisma.driver.findMany({ include: { constructor: true } });
     const existingCount = await prisma.raceResult.count({
-      where: { leagueId, week: parseInt(week) },
+      where: { leagueId, week: weekNum },
     });
     res.json({
-      week: parseInt(week),
+      week: weekNum,
       league: { id: league.id, name: league.name },
       resultsExist: existingCount > 0,
       existingCount,
@@ -129,7 +142,8 @@ app.get('/admin/races/:leagueId/:week', authMiddleware, async (req, res) => {
       })),
     });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Admin race form error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
