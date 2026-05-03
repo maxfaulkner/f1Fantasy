@@ -148,6 +148,45 @@ describe('POST /api/admin/races/:leagueId/:week — authorization', () => {
   });
 });
 
+// ─── Bug: GET /api/leagues/:leagueId/activity used wrong Prisma model names
+// (prisma.leagueMember, prisma.weeklyTeam), compound key in wrong order
+// (leagueId_userId → userId_leagueId), and had no error handling at all.
+describe('GET /api/leagues/:leagueId/activity', () => {
+  test('403: rejects requests from non-members', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue(null);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/activity')
+      .set(auth());
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/not a member/i);
+  });
+
+  test('200: returns events array containing team and result events', async () => {
+    prisma.leagueUser.findUnique.mockResolvedValue({ userId: 'user1', leagueId: 'lg1' });
+    prisma.userWeeklyTeam.findMany.mockResolvedValue([{
+      id: 'team1', week: 2, updatedAt: new Date('2026-04-01T12:00:00Z'),
+      user: { id: 'user1', name: 'Alice' },
+    }]);
+    prisma.raceResult.findMany.mockResolvedValue([{
+      week: 1, createdAt: new Date('2026-03-20T16:00:00Z'),
+    }]);
+    prisma.leagueMessage.findMany.mockResolvedValue([]);
+    prisma.leagueUser.findMany.mockResolvedValue([]);
+
+    const res = await request(app)
+      .get('/api/leagues/lg1/activity')
+      .set(auth());
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.events)).toBe(true);
+    const types = res.body.events.map(e => e.type);
+    expect(types).toContain('team_submitted');
+    expect(types).toContain('results_imported');
+  });
+});
+
 // ─── Bug: GET /api/leagues/stats triple_captain chip was ignored —
 // always applied 2× captain bonus regardless of chip used.
 describe('GET /api/leagues/:leagueId/stats — triple_captain chip applied correctly', () => {

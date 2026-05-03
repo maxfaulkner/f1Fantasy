@@ -7,8 +7,10 @@ const apiRoutes = require('./routes/api');
 const chatRoutes = require('./routes/chat');
 const socialRoutes = require('./routes/social');
 const authMiddleware = require('./middleware/auth');
-const { JWT_SECRET } = authMiddleware;
+const raceImportJob = require('./jobs/weeklyRaceImportJob');
 const rateLimit = require('express-rate-limit');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret';
 
 const app = express();
 
@@ -108,7 +110,7 @@ app.post('/auth/login', async (req, res) => {
     });
 
     // Non-blocking: check if any past rounds are missing results and import them
-    require('./jobs/weeklyRaceImportJob').checkAndImportPastRounds().catch(err =>
+    raceImportJob.checkAndImportPastRounds().catch(err =>
       console.error('Catch-up import check failed:', err.message)
     );
   } catch (error) {
