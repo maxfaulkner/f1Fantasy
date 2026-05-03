@@ -7,6 +7,11 @@ const raceImportJob = require('./jobs/weeklyRaceImportJob');
 const PORT = process.env.PORT || 3000;
 
 async function main() {
+  if (!process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+    console.error('FATAL: JWT_SECRET environment variable is not set in production');
+    process.exit(1);
+  }
+
   try {
     await prisma.$queryRaw`SELECT 1`;
     console.log('✓ Database connected');

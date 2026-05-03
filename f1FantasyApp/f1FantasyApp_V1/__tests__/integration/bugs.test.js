@@ -148,9 +148,6 @@ describe('POST /api/admin/races/:leagueId/:week — authorization', () => {
   });
 });
 
-// ─── Bug: GET /api/leagues/:leagueId/activity used wrong Prisma model names
-// (prisma.leagueMember, prisma.weeklyTeam), compound key in wrong order
-// (leagueId_userId → userId_leagueId), and had no error handling at all.
 describe('GET /api/leagues/:leagueId/activity', () => {
   test('403: rejects requests from non-members', async () => {
     prisma.leagueUser.findUnique.mockResolvedValue(null);
