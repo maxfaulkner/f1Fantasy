@@ -1,5 +1,6 @@
 // src/__tests__/pages/Leaderboard.test.jsx
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Leaderboard from '../../pages/Leaderboard';
 
@@ -124,6 +125,53 @@ describe('Leaderboard page', () => {
     renderLeaderboard();
     await waitFor(() => {
       expect(screen.queryByText(/season points trajectory/i)).not.toBeInTheDocument();
+    });
+  });
+
+  test('clicking a legend button toggles highlight and dims other players', async () => {
+    const user = userEvent.setup();
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
+        { userId: 'user2', userName: 'Bob', totalPoints: 120, rank: 2, totalWins: 1, rankDelta: 0, roundPoints: { 1: 60, 2: 60 } },
+      ],
+      latestRound: 2,
+    });
+    renderLeaderboard();
+    await waitFor(() => screen.getByText(/season points trajectory/i));
+
+    // Legend spans sit inside buttons; podium/table names are in divs/tds
+    const aliceBtn = screen.getAllByText('Alice').map(el => el.closest('button')).find(Boolean);
+    const bobBtn = screen.getAllByText('Bob').map(el => el.closest('button')).find(Boolean);
+
+    // Clicking Alice highlights her and dims Bob
+    await user.click(aliceBtn);
+    expect(bobBtn.style.opacity).toBe('0.4');
+
+    // Clicking Alice again toggles off — both back to full opacity
+    await user.click(aliceBtn);
+    expect(bobBtn.style.opacity).toBe('1');
+  });
+
+  test('hovering a data point shows a tooltip with cumulative pts', async () => {
+    mockGetLeaderboard.mockResolvedValue({
+      standings: [
+        { userId: 'user1', userName: 'Alice', totalPoints: 150, rank: 1, totalWins: 3, rankDelta: 0, roundPoints: { 1: 80, 2: 70 } },
+        { userId: 'user2', userName: 'Bob', totalPoints: 120, rank: 2, totalWins: 1, rankDelta: 0, roundPoints: { 1: 60, 2: 60 } },
+      ],
+      latestRound: 2,
+    });
+    const { container } = renderLeaderboard();
+    await waitFor(() => screen.getByText(/season points trajectory/i));
+
+    const circles = container.querySelectorAll('circle');
+    expect(circles.length).toBeGreaterThan(0);
+
+    fireEvent.mouseEnter(circles[0]);
+
+    await waitFor(() => {
+      // Tooltip background rect is rendered when tooltip state is set
+      expect(container.querySelector('rect[fill="#1c1c1f"]')).toBeInTheDocument();
     });
   });
 });
