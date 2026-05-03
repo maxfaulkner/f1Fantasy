@@ -503,9 +503,9 @@ function SeasonPointsChart({ standings }) {
     const color = player.avatarColor || CHART_COLORS[i % CHART_COLORS.length];
     let cum = 0;
     const pts = allRounds.map(round => {
-      const rp = player.roundPoints?.[round] ?? 0;
-      cum += rp;
-      return { round, cumulative: cum, roundPts: player.roundPoints?.[round] ?? null };
+      const rp = player.roundPoints?.[round];
+      cum += rp ?? 0;
+      return { round, cumulative: cum, roundPts: rp ?? null };
     });
     return { userId: player.userId, userName: player.userName, color, pts };
   });
