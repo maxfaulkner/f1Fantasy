@@ -1,6 +1,3 @@
-// Shared constants for the F1 Fantasy backend.
-// Single source of truth for values used across routes, services, and jobs.
-
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret';
 
 const F1_POINTS = {
@@ -19,7 +16,6 @@ const PRICING_PERF_WEIGHT = 0.15;
 const PRICING_MARKET_WEIGHT = 0.08;
 const MIN_DRIVER_PRICE = 0.5;
 
-// Fallback default price when no price record exists for a driver
 const DEFAULT_DRIVER_SEED_PRICE = 8.0;
 
 module.exports = {

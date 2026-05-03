@@ -243,7 +243,7 @@ router.post('/leagues', authMiddleware, async (req, res) => {
     res.status(201).json(league);
   } catch (error) {
     console.error('Error creating league:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -295,7 +295,7 @@ router.get('/leagues', authMiddleware, async (req, res) => {
     })));
   } catch (error) {
     console.error('Error listing leagues:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -323,7 +323,8 @@ router.get('/leagues/public', authMiddleware, async (req, res) => {
       memberCount: l._count.users,
     })));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching public leagues:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -347,7 +348,7 @@ router.get('/leagues/:leagueId', authMiddleware, async (req, res) => {
     res.json(league);
   } catch (error) {
     console.error('Error fetching league:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -383,7 +384,7 @@ router.post('/leagues/:leagueId/join', authMiddleware, async (req, res) => {
     res.json({ message: 'Joined league successfully', leagueId, leagueName: league.name });
   } catch (error) {
     console.error('Error joining league:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -417,7 +418,8 @@ router.post('/leagues/join-code/:code', authMiddleware, async (req, res) => {
 
     res.json({ message: 'Joined league successfully', leagueId: league.id, leagueName: league.name });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error joining league by code:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -487,7 +489,7 @@ router.get(
       res.json({ ...team, drivers: enrichedDrivers, constructors: enrichedConstructors, totalRoundPoints });
     } catch (error) {
       console.error('Error fetching team:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -649,7 +651,7 @@ router.post(
       });
     } catch (error) {
       console.error('Error submitting team:', error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: 'Internal server error' });
     }
   }
 );
@@ -697,7 +699,8 @@ router.get('/leagues/:leagueId/team/:week/:userId', authMiddleware, async (req, 
 
     res.json({ ...team, drivers: enrichedDrivers, constructors: enrichedConstructors, totalRoundPoints });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching player team:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -761,7 +764,7 @@ router.get('/leagues/:leagueId/prices/:week', authMiddleware, async (req, res) =
     });
   } catch (error) {
     console.error('Error fetching prices:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -805,7 +808,7 @@ router.get('/leagues/:leagueId/driver-form/:week', authMiddleware, async (req, r
     res.json({ form: formMap, prices: priceMap });
   } catch (error) {
     console.error('Error fetching driver form:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -950,7 +953,7 @@ router.get('/leagues/:leagueId/leaderboard', authMiddleware, async (req, res) =>
     res.json({ standings, latestRound: latestWeek });
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -971,7 +974,8 @@ router.get('/leagues/:leagueId/chips', authMiddleware, async (req, res) => {
 
     res.json(chips);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching chips:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -991,7 +995,8 @@ router.get('/leagues/:leagueId/transfers', authMiddleware, async (req, res) => {
 
     res.json(transfers);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching transfers:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1056,7 +1061,8 @@ router.get('/leagues/:leagueId/leaderboard/weekly/:week', authMiddleware, async 
 
     res.json({ week: weekNum, standings: weekStandings });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching weekly leaderboard:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1084,7 +1090,8 @@ router.get('/leagues/:leagueId/members', authMiddleware, async (req, res) => {
       totalPoints: m.totalPoints,
     })));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching members:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1105,7 +1112,8 @@ router.put('/leagues/:leagueId/team-name', authMiddleware, async (req, res) => {
 
     res.json({ message: 'Team name updated', teamName });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error updating team name:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1188,7 +1196,7 @@ router.post('/admin/races/:leagueId/:week', authMiddleware, async (req, res) => 
     });
   } catch (error) {
     console.error('Error processing race results:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1379,7 +1387,7 @@ router.get('/leagues/:leagueId/h2h', authMiddleware, async (req, res) => {
     res.json({ matchups: enriched, records });
   } catch (error) {
     console.error('H2H error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1418,7 +1426,7 @@ router.put('/leagues/:leagueId/settings', authMiddleware, async (req, res) => {
     res.json({ message: 'Settings updated', league: updated });
   } catch (error) {
     console.error('Settings update error:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1540,7 +1548,7 @@ router.post('/admin/check-results', checkResultsLimiter, authMiddleware, async (
     res.json({ status: 'imported', message: `${eventLabel} imported — ${totalSaved} results saved across ${leagues.length - skipped} league(s).`, round });
   } catch (error) {
     console.error('Error checking results:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1560,7 +1568,8 @@ router.get('/results/latest', authMiddleware, async (req, res) => {
     req.params = { ...req.params, week: String(latest.week) };
     return fetchResultsForWeek(latest.week, res);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching latest results:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1574,7 +1583,8 @@ router.get('/results/:week', authMiddleware, async (req, res) => {
     const weekNum = parseInt(req.params.week);
     await fetchResultsForWeek(weekNum, res);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching results:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -1,5 +1,3 @@
-// app.js — Express application factory (no DB connection, no server.listen)
-// Imported by server.js (production) and by tests (with mocked Prisma)
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');

@@ -163,7 +163,7 @@ describe('GET /api/leagues/:leagueId/activity', () => {
     expect(res.body.error).toMatch(/not a member/i);
   });
 
-  test('200: returns events array containing team and result events', async () => {
+  test('200: returns events array containing team, result, and member_joined events', async () => {
     prisma.leagueUser.findUnique.mockResolvedValue({ userId: 'user1', leagueId: 'lg1' });
     prisma.userWeeklyTeam.findMany.mockResolvedValue([{
       id: 'team1', week: 2, updatedAt: new Date('2026-04-01T12:00:00Z'),
@@ -173,7 +173,11 @@ describe('GET /api/leagues/:leagueId/activity', () => {
       week: 1, createdAt: new Date('2026-03-20T16:00:00Z'),
     }]);
     prisma.leagueMessage.findMany.mockResolvedValue([]);
-    prisma.leagueUser.findMany.mockResolvedValue([]);
+    prisma.leagueUser.findMany.mockResolvedValue([{
+      userId: 'user2',
+      joinedAt: new Date('2026-03-10T10:00:00Z'),
+      user: { id: 'user2', name: 'Bob' },
+    }]);
 
     const res = await request(app)
       .get('/api/leagues/lg1/activity')
@@ -184,6 +188,7 @@ describe('GET /api/leagues/:leagueId/activity', () => {
     const types = res.body.events.map(e => e.type);
     expect(types).toContain('team_submitted');
     expect(types).toContain('results_imported');
+    expect(types).toContain('member_joined');
   });
 });
 
