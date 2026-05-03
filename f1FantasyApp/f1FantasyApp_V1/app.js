@@ -9,8 +9,7 @@ const socialRoutes = require('./routes/social');
 const authMiddleware = require('./middleware/auth');
 const raceImportJob = require('./jobs/weeklyRaceImportJob');
 const rateLimit = require('express-rate-limit');
-
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret';
+const { JWT_SECRET } = require('./constants');
 
 const app = express();
 

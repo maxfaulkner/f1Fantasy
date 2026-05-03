@@ -5,6 +5,7 @@ const prisma = require('../prisma');
 const f1DataService = require('../services/f1DataService');
 const pricingEngine = require('../services/pricingEngine');
 const mailer = require('../services/mailer');
+const { DEFAULT_BUDGET } = require('../constants');
 
 const JOLPICA_API = 'https://api.jolpi.ca/ergast/f1';
 
@@ -178,7 +179,7 @@ async function importRaceResults(season, round) {
       await mailer.sendTeamPickReminder(m.user.email, {
         leagueName: league.name,
         week: round + 1,
-        budget: 100,
+        budget: DEFAULT_BUDGET,
       }).catch(() => {}); // don't fail the import if email fails
     }
 

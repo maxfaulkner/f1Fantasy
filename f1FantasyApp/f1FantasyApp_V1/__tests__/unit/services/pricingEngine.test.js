@@ -1,7 +1,7 @@
 // __tests__/unit/services/pricingEngine.test.js
 // Prisma is auto-mocked via __mocks__/prisma.js + setup.js
 const prisma = require('../../../prisma');
-const { F1_POINTS } = require('../../../constants');
+const { F1_POINTS, DEFAULT_DRIVER_SEED_PRICE } = require('../../../constants');
 const {
   getExpectedPosition,
   calculatePerformanceDelta,
@@ -123,13 +123,13 @@ describe('updateDriverPrice', () => {
     // Both findUnique (exact week) and findFirst (fallback) return null — driver has zero price records
     prisma.driverPrice.findUnique.mockResolvedValue(null);
     prisma.driverPrice.findFirst.mockResolvedValue(null);
-    prisma.driverPrice.upsert.mockResolvedValue({ driverId: mockDriver.id, week: 2, price: 8.0 });
+    prisma.driverPrice.upsert.mockResolvedValue({ driverId: mockDriver.id, week: 2, price: DEFAULT_DRIVER_SEED_PRICE });
     prisma.raceResult.findMany.mockResolvedValue([]);
     prisma.userWeeklyTeamDriver.count.mockResolvedValue(0);
     prisma.userWeeklyTeam.count.mockResolvedValue(0);
     prisma.pricingAuditLog.create.mockResolvedValue({});
 
-    // Must NOT throw — should use $8M default and return a valid new price
+    // Must NOT throw — should use DEFAULT_DRIVER_SEED_PRICE and return a valid new price
     const newPrice = await updateDriverPrice(mockDriver, 5, 'lg1', 2);
     expect(typeof newPrice).toBe('number');
     expect(newPrice).toBeGreaterThanOrEqual(0.5);
@@ -137,7 +137,7 @@ describe('updateDriverPrice', () => {
     expect(prisma.driverPrice.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { driverId_week: { driverId: mockDriver.id, week: 2 } },
-        create: expect.objectContaining({ price: 8.0 }),
+        create: expect.objectContaining({ price: DEFAULT_DRIVER_SEED_PRICE }),
       })
     );
   });

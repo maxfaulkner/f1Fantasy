@@ -1,6 +1,8 @@
 // Shared constants for the F1 Fantasy backend.
 // Single source of truth for values used across routes, services, and jobs.
 
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-insecure-secret';
+
 const F1_POINTS = {
   1: 25, 2: 18, 3: 15, 4: 12, 5: 10,
   6: 8,  7: 6,  8: 4,  9: 2,  10: 1,
@@ -21,6 +23,7 @@ const MIN_DRIVER_PRICE = 0.5;
 const DEFAULT_DRIVER_SEED_PRICE = 8.0;
 
 module.exports = {
+  JWT_SECRET,
   F1_POINTS,
   SPRINT_POINTS,
   CHIP_TYPES,
