@@ -117,7 +117,7 @@ describe('Leaderboard page', () => {
   test('does not render season points trajectory chart when no results', async () => {
     mockGetLeaderboard.mockResolvedValue({
       standings: [
-        { userId: 'user1', userName: 'Alice', totalPoints: 0, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
+        { userId: 'user1', userName: 'Alice', totalPoints: 50, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
       ],
       latestRound: 1,
     });
@@ -142,14 +142,12 @@ describe('Leaderboard page', () => {
     const aliceBtn = screen.getAllByText('Alice').map(el => el.closest('button')).find(Boolean);
     const bobBtn = screen.getAllByText('Bob').map(el => el.closest('button')).find(Boolean);
 
-    // fireEvent.click isolates the click handler without triggering mouseenter first,
-    // which would race with the toggle and leave hoveredPlayer null.
     fireEvent.click(aliceBtn);
     expect(bobBtn.style.opacity).toBe('0.4');
 
     // Clicking Alice again toggles off — both back to full opacity
     fireEvent.click(aliceBtn);
-    expect(bobBtn.style.opacity).toBe('1');
+    expect(bobBtn).toHaveStyle('opacity: 1');
   });
 
   test('hovering a data point shows a tooltip with cumulative pts', async () => {
@@ -169,8 +167,7 @@ describe('Leaderboard page', () => {
     fireEvent.mouseEnter(circles[0]);
 
     await waitFor(() => {
-      // Tooltip background rect is rendered when tooltip state is set
-      expect(container.querySelector('rect[fill="#1c1c1f"]')).toBeInTheDocument();
+      expect(screen.getByText(/80 pts/)).toBeInTheDocument();
     });
   });
 });
