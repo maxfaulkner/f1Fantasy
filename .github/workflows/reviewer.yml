@@ -3,6 +3,8 @@ name: Claude Reviewer
 on:
   repository_dispatch:
     types: [review-requested]
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: write
@@ -12,7 +14,12 @@ permissions:
 
 jobs:
   review:
-    if: github.event_name == 'repository_dispatch' && github.event.action == 'review-requested'
+    if: |
+      (github.event_name == 'repository_dispatch' && github.event.action == 'review-requested') ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       github.event.sender.type != 'Bot' &&
+       startsWith(github.event.comment.body, '/review'))
     runs-on: ubuntu-latest
     steps:
       - name: Resolve PR number and branch
@@ -23,6 +30,10 @@ jobs:
           if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
             echo "number=${{ github.event.client_payload.pr_number }}" >> "$GITHUB_OUTPUT"
             echo "branch=${{ github.event.client_payload.branch }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "issue_comment" ]; then
+            echo "number=${{ github.event.issue.number }}" >> "$GITHUB_OUTPUT"
+            branch=$(gh pr view ${{ github.event.issue.number }} --repo ${{ github.repository }} --json headRefName --jq '.headRefName')
+            echo "branch=${branch}" >> "$GITHUB_OUTPUT"
           else
             echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
             echo "branch=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
@@ -109,7 +120,7 @@ jobs:
           verdict=$(gh pr view ${{ steps.pr.outputs.number }} \
             --repo ${{ github.repository }} \
             --json reviews \
-            --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]")] | last | .state // ""')
+            --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]") | select(.state == "CHANGES_REQUESTED" or .state == "APPROVED")] | last | .state // ""')
           if [ "$verdict" = "CHANGES_REQUESTED" ]; then
             gh api repos/${{ github.repository }}/dispatches \
               --field event_type=request-changes \
@@ -125,7 +136,7 @@ jobs:
           verdict=$(gh pr view ${{ steps.pr.outputs.number }} \
             --repo ${{ github.repository }} \
             --json reviews \
-            --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]")] | last | .state // ""')
+            --jq '[.reviews[] | select(.author.login == "github-actions" or .author.login == "github-actions[bot]") | select(.state == "CHANGES_REQUESTED" or .state == "APPROVED")] | last | .state // ""')
           if [ "$verdict" = "APPROVED" ]; then
             gh pr edit ${{ steps.pr.outputs.number }} \
               --add-reviewer ${{ github.repository_owner }} || true

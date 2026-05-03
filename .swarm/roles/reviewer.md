@@ -12,7 +12,7 @@ Before reviewing, read the repo's `CLAUDE.md` (if present) and the top-level REA
 1. **AI slop**: unnecessary comments explaining obvious code, redundant docstrings restating function names, defensive try/except blocks that swallow errors, "helper" abstractions used once, premature generalization, console.log/print statements left in
 2. **Over-engineering**: factories/managers/strategies for things that could be a function, configuration for things that have one sensible value, abstract base classes with one implementation, new files that should have been additions to existing files
 3. **Dead code**: unused imports, unreferenced functions, commented-out blocks, "for future use" parameters, TODO comments without an issue link
-4. **Duplication and inconsistency**: repeated logic that should be shared, inconsistent naming, mixed patterns where one already exists in the codebase, new dependency added when existing one solves the problem
+4. **Duplication and inconsistency**: repeated logic that should be shared, inconsistent naming, mixed patterns where one already exists in the codebase, new dependency added when existing one solves the problem. If a fix for a pattern exists in one file, grep for the same pattern in adjacent files and flag unfixed instances.
 5. **Test quality**: tests that assert nothing meaningful, tests that mock the thing under test, missing tests for the actual behavior change, tests that pass without the production code change
 6. **Correctness**: bugs, race conditions, missed edge cases, incorrect handling of F1 data quirks (DNFs, red flags, sprint weekends, driver swaps mid-season)
 

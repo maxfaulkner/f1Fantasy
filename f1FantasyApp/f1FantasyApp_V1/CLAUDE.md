@@ -91,6 +91,12 @@ The public Railway DB URL is available via: `railway variables` on the Postgres 
 - Race results are fetched from the Jolpica proxy of the Ergast F1 API.
 - Prisma schema is at the root, not in a `prisma/` subdirectory. The `binaryTargets` includes darwin-arm64 (local Mac) and linux targets (Railway).
 
+## Settled architectural decisions
+These were debated and resolved — do not re-raise them in reviews.
+
+- **JWT_SECRET lives in two places** (`app.js` login handler and `middleware/auth.js`) and that is intentional. Both evaluate `process.env.JWT_SECRET || 'dev-only-insecure-secret'` independently. Node's module cache means each file is evaluated once per process, so there is no runtime divergence risk. A single shared constant would require a new module just to hold one string — not worth it.
+- **`weeklyRaceImportJob` is not imported in `app.js`** — it belongs in `server.js` only (startup concern, not app concern). Tests mock it via `__tests__/setup.js`.
+
 ## Common gotchas
 - **node_modules was previously Windows-compiled** — if you see native module errors (bcrypt, prisma), run `npm install` fresh on Mac.
 - **Schema vs migration drift** — the original migration was incomplete. A second migration (`20260328000000_sync_schema`) adds all missing columns/tables. Always run `prisma migrate deploy` not `db push` in production.
@@ -105,3 +111,24 @@ npm test
 # Frontend
 cd frontend && npm test
 ```
+
+## Test quality standards
+
+**Backend** (`__tests__/integration/` — supertest + jest):
+- Every new endpoint needs a 401 (no token) test before any other assertion.
+- Assert on `res.body` fields, not just status codes, when the response carries meaningful data.
+- Share fixture objects across tests in the same describe block rather than repeating inline objects.
+
+**Frontend** (`frontend/src/__tests__/` — vitest + testing-library):
+- Before writing a "does not render" test, read the component's render tree to identify every condition that can suppress it. Your fixture must pass all outer conditions and only fail the innermost one the test is named for.
+- Wrong: testing that `SeasonPointsChart` handles empty rounds by setting `totalPoints: 0` — if the parent already gates the chart on `totalPoints > 0`, the chart never mounts and the test proves nothing about the chart itself.
+- Right: `totalPoints: 150, roundPoints: {}` — outer gate passes, component mounts, the internal empty-rounds guard is what's actually tested.
+- After writing a test, trace execution from the fixture through the component to the assertion and confirm the condition you intend to test is the one controlling the outcome.
+- Mock the API layer (`vi.mock('../../api', ...)`), not the component under test.
+
+## Code quality: what not to write
+
+- No comments that restate what the code does. `// Fetch all data in bulk upfront` above a `Promise.all` is noise — delete it. If the comment would appear in a tutorial explaining how the code works, it does not belong in production code.
+- No silent `try/catch` blocks that swallow errors. Either handle the error meaningfully or let it propagate.
+- No single-use helper functions unless motivated by testability or the body is more than ~15 lines.
+- No `console.log` or `console.error` left in production code.

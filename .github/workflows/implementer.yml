@@ -52,6 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          sleep 5
           pr=$(gh pr list --repo ${{ github.repository }} --head "swarm/issue-${{ github.event.issue.number }}-*" --json number,headRefName --jq 'first | {number, branch: .headRefName}')
           pr_number=$(echo "$pr" | jq -r '.number // empty')
           pr_branch=$(echo "$pr" | jq -r '.branch // empty')
@@ -60,6 +61,9 @@ jobs:
               --field event_type=review-requested \
               --field "client_payload[pr_number]=$pr_number" \
               --field "client_payload[branch]=$pr_branch"
+          else
+            gh issue comment ${{ github.event.issue.number }} \
+              --body "@maxfaulkner implementer finished but no PR was found for issue #${{ github.event.issue.number }}. Open the PR manually if needed, then kick the reviewer with: \`gh api repos/${{ github.repository }}/dispatches --field event_type=review-requested --field 'client_payload[pr_number]=<PR_NUMBER>' --field 'client_payload[branch]=<BRANCH>'\`"
           fi
 
   resume-pr:
@@ -107,6 +111,11 @@ jobs:
         github.event.issue.pull_request != null &&
         contains(github.event.comment.body, 'VERDICT: REQUEST_CHANGES') &&
         contains(github.event.issue.labels.*.name, 'swarm-implementation')
+      ) || (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        github.event.sender.type != 'Bot' &&
+        startsWith(github.event.comment.body, '/implement')
       )
     runs-on: ubuntu-latest
     steps:
@@ -152,7 +161,7 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ steps.pr.outputs.number }}
 
-            The reviewer has posted REQUEST_CHANGES on PR #${{ steps.pr.outputs.number }}. Read the review comments carefully, then respond following the role instructions above.
+            The reviewer has posted REQUEST_CHANGES on PR #${{ steps.pr.outputs.number }}. Read every review comment, address each one, then re-read your entire diff using `gh pr diff` and apply the self-review checklist from your role before pushing.
           claude_args: |
             --allowedTools "Edit,Read,Write,Glob,Grep,Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(git log:*),Bash(git diff:*),Bash(git status:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(npm test:*),Bash(npm run:*)"
 

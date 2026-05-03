@@ -20,6 +20,30 @@ Write the smallest correct change that satisfies the request. One PR = one featu
 - No new files unless the feature genuinely needs them.
 - For F1 data: respect the data source already wired up. Do not add a second data source casually.
 
+## Self-review before opening the PR
+
+Before running `gh pr create`, work through this checklist against your own diff:
+
+**Comments**
+- Read every comment you wrote. If it describes *what* the code does, delete it. A comment survives only if it explains *why* — a non-obvious constraint, a deliberate workaround, or a domain rule not visible in the logic itself. If it would appear in a tutorial explaining how the code works, it does not belong here.
+
+**Tests**
+- For each test covering a guard or early return: trace the fixture through the production code and confirm the guard under test is the *first* relevant condition, not a parent gate that fires before it. A test whose fixture trips an outer guard proves nothing about the inner one.
+- Verify each test would fail if you temporarily deleted or inverted the production code it covers. If it still passes, the test is not covering the behaviour — redesign the fixture.
+- For backend: every new endpoint needs at minimum a 401 (unauthenticated) test and a happy-path test.
+- For frontend: a "does not render" test must use a fixture that passes all parent conditions and only fails the innermost condition being tested.
+
+**Partial fixes**
+- If you fix an error-handling pattern, guard condition, or comment style in one place, use `Grep` to search the same file and adjacent files for the same pattern. Fix all instances, or explain in the PR description why you intentionally did not.
+
+**Module boundaries**
+- Check every new `require()`/`import`. Middleware should not export secrets. Constants files should not contain runtime env checks. Shared utilities should not contain catch blocks for one specific caller's use case.
+
+**Guard conditions**
+- For any guard you added or changed: trace the realistic conditions that make it fire. Does it ever suppress correct data? Is it reachable given upstream conditions, or does something upstream already handle the same case?
+
+Only open the PR when every item above is satisfied.
+
 ## PR creation (triggered by `approved` label on an issue)
 1. Read the issue body in full.
 2. Create branch `swarm/issue-<number>-<short-slug>`.
