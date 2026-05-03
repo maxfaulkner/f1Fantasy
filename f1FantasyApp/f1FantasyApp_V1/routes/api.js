@@ -10,7 +10,7 @@ const authMiddleware = require('../middleware/auth');
 const { isRoundLocked } = require('../jobs/weeklyRaceImportJob');
 const { checkAchievementsAfterRace } = require('../services/achievementService');
 const { sendPushToUsers } = require('../services/pushNotificationService');
-const { CHIP_TYPES } = require('../constants');
+const { CHIP_TYPES, DEFAULT_BUDGET } = require('../constants');
 
 // Notify all members of a league that results were imported
 async function notifyResultsImported(leagueId, round, leagueName, eventLabel) {
@@ -568,7 +568,7 @@ router.post(
 
       // Calculate total cost
       const leagueForBudget = await prisma.league.findUnique({ where: { id: leagueId }, select: { budget: true } });
-      const budget = leagueForBudget?.budget ?? 100; // millions
+      const budget = leagueForBudget?.budget ?? DEFAULT_BUDGET;
       const driverCost = driverPrices.reduce((sum, p) => sum + p.price, 0);
       const totalCost = driverCost + constructorPrice.price;
 
@@ -756,7 +756,7 @@ router.get('/leagues/:leagueId/prices/:week', authMiddleware, async (req, res) =
       week: weekNum,
       drivers,
       constructors,
-      totalBudget: league?.budget ?? 100,
+      totalBudget: league?.budget ?? DEFAULT_BUDGET,
       locked: await isRoundLocked(weekNum),
     });
   } catch (error) {
@@ -1619,7 +1619,7 @@ async function fetchResultsForWeek(weekNum, res) {
 router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
-    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
 
     const member = await prisma.leagueUser.findUnique({
       where: { userId_leagueId: { userId: req.user.id, leagueId } },

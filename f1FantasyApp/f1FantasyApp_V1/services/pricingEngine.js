@@ -252,5 +252,4 @@ module.exports = {
   calculatePerformanceDelta,
   calculateMarketPressure,
   getExpectedPosition,
-  F1_POINTS,
 };

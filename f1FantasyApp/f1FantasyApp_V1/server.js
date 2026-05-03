@@ -1,20 +1,10 @@
-// server.js — production entry point: connects DB, starts scheduler, serves static files
+// server.js — production entry point: connects DB, starts scheduler
 require('dotenv').config();
-const path = require('path');
 const prisma = require('./prisma');
 const app = require('./app');
 const raceImportJob = require('./jobs/weeklyRaceImportJob');
 
 const PORT = process.env.PORT || 3000;
-
-// Serve built frontend in production
-if (process.env.NODE_ENV === 'production') {
-  const express = require('express');
-  app.use(express.static(path.join(__dirname, 'frontend/dist')));
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
-  });
-}
 
 async function main() {
   try {

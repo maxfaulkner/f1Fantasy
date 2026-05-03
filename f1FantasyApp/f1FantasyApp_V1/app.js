@@ -9,7 +9,6 @@ const socialRoutes = require('./routes/social');
 const authMiddleware = require('./middleware/auth');
 const { JWT_SECRET } = authMiddleware;
 const rateLimit = require('express-rate-limit');
-const raceImportJob = require('./jobs/weeklyRaceImportJob');
 
 const app = express();
 
@@ -109,7 +108,7 @@ app.post('/auth/login', async (req, res) => {
     });
 
     // Non-blocking: check if any past rounds are missing results and import them
-    raceImportJob.checkAndImportPastRounds().catch(err =>
+    require('./jobs/weeklyRaceImportJob').checkAndImportPastRounds().catch(err =>
       console.error('Catch-up import check failed:', err.message)
     );
   } catch (error) {
@@ -146,6 +145,16 @@ app.get('/admin/races/:leagueId/:week', authMiddleware, async (req, res) => {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+// ============ STATIC FILES (production) ============
+
+if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
+  app.use(express.static(path.join(__dirname, 'frontend/dist')));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
+  });
+}
 
 // ============ ERROR HANDLING ============
 

@@ -1,8 +1,8 @@
 // __tests__/unit/services/pricingEngine.test.js
 // Prisma is auto-mocked via __mocks__/prisma.js + setup.js
 const prisma = require('../../../prisma');
+const { F1_POINTS } = require('../../../constants');
 const {
-  F1_POINTS,
   getExpectedPosition,
   calculatePerformanceDelta,
   calculateMarketPressure,
