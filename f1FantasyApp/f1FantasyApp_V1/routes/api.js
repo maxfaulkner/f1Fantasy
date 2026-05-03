@@ -129,7 +129,6 @@ async function generateH2HMatchups(leagueId, week) {
  */
 async function updateLeagueUserCache(leagueId) {
   try {
-    // Fetch all data in bulk upfront to avoid N+1 queries
     const [leagueUsers, allRaceResults, allConstructorResults] = await Promise.all([
       prisma.leagueUser.findMany({
         where: { leagueId },
@@ -148,7 +147,6 @@ async function updateLeagueUserCache(leagueId) {
       prisma.constructorRaceResult.findMany({ where: { leagueId } }),
     ]);
 
-    // Build lookup maps for O(1) access
     const raceResultMap = new Map();
     for (const r of allRaceResults) {
       const key = `${r.driverId}:${r.week}`;
@@ -235,7 +233,6 @@ router.post('/leagues', authMiddleware, async (req, res) => {
       include: { users: true },
     });
 
-    // Give creator their chips (one of each type)
     await prisma.chip.createMany({
       data: CHIP_TYPES.map(type => ({ userId, leagueId: league.id, type })),
     });
@@ -375,7 +372,6 @@ router.post('/leagues/:leagueId/join', authMiddleware, async (req, res) => {
 
     await prisma.leagueUser.create({ data: { userId, leagueId } });
 
-    // Give new member their chips (one of each type)
     await prisma.chip.createMany({
       data: CHIP_TYPES.map(type => ({ userId, leagueId, type })),
       skipDuplicates: true,

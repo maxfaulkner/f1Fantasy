@@ -68,7 +68,8 @@ The public Railway DB URL is available via: `railway variables` on the Postgres 
 ## Key files
 | File | Purpose |
 |---|---|
-| `server.js` | Express entry point, auth routes, static file serving in prod |
+| `server.js` | Startup shim: DB connection check, port binding, scheduler start |
+| `app.js` | Express app factory: all routes, middleware, auth endpoints, static file serving in prod |
 | `routes/api.js` | All 25+ API endpoints |
 | `routes/chat.js` | League messaging |
 | `routes/social.js` | Notifications, achievements, profiles |
