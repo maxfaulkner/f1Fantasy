@@ -499,12 +499,12 @@ function SeasonPointsChart({ standings }) {
 
   if (allRounds.length === 0) return null;
 
-  const playerSeries = standings.map((player, i) => {
-    const color = player.avatarColor || CHART_COLORS[i % CHART_COLORS.length];
+  const playerSeries = standings.slice(0, 10).map((player, i) => {
+    const color = player.avatarColor || CHART_COLORS[i];
     let cum = 0;
     const pts = allRounds.reduce((acc, round, idx) => {
       const rp = player.roundPoints?.[round];
-      if (rp === undefined) return acc;
+      if (rp == null) return acc;
       cum += rp;
       acc.push({ round, roundIdx: idx, cumulative: cum, roundPts: rp });
       return acc;

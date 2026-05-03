@@ -1,5 +1,5 @@
 // src/__tests__/pages/Leaderboard.test.jsx
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Leaderboard from '../../pages/Leaderboard';
 
@@ -167,7 +167,8 @@ describe('Leaderboard page', () => {
     fireEvent.mouseEnter(aliceR1);
 
     await waitFor(() => {
-      expect(screen.getByText(/80 pts/)).toBeInTheDocument();
+      const svg = container.querySelector('svg');
+      expect(within(svg).getByText(/80 pts/)).toBeInTheDocument();
     });
   });
 });
