@@ -143,7 +143,7 @@ describe('Leaderboard page', () => {
     const bobBtn = screen.getAllByText('Bob').map(el => el.closest('button')).find(Boolean);
 
     fireEvent.click(aliceBtn);
-    expect(bobBtn.style.opacity).toBe('0.4');
+    expect(bobBtn).toHaveStyle('opacity: 0.4');
 
     // Clicking Alice again toggles off — both back to full opacity
     fireEvent.click(aliceBtn);

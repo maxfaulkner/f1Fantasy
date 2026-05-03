@@ -591,7 +591,7 @@ function SeasonPointsChart({ standings }) {
                 setHoveredPlayer(player.userId);
                 setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(pt.roundIdx), svgY: yScale(pt.cumulative) });
               }}
-              onMouseLeave={() => { setHoveredPlayer(null); setTooltip(null); }}
+              onMouseLeave={() => setTooltip(null)}
             />
           ));
         })}
