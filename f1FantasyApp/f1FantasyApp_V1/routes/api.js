@@ -1621,7 +1621,6 @@ async function fetchResultsForWeek(weekNum, res) {
 }
 
 // GET /api/leagues/:leagueId/activity
-// Returns a chronological feed of recent league events
 router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
   try {
     const { leagueId } = req.params;
@@ -1632,7 +1631,6 @@ router.get('/leagues/:leagueId/activity', authMiddleware, async (req, res) => {
     });
     if (!member) return res.status(403).json({ error: 'Not a member of this league' });
 
-    // Gather events from multiple sources in parallel
     const [recentTeams, recentResults, recentMessages, members] = await Promise.all([
       // Recent team submissions
       prisma.userWeeklyTeam.findMany({
