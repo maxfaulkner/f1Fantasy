@@ -497,6 +497,7 @@ function SeasonPointsChart({ standings }) {
     standings.flatMap(s => Object.keys(s.roundPoints || {}).map(Number))
   )].sort((a, b) => a - b);
 
+  // old records may have totalPoints > 0 but no roundPoints entries (field added later)
   if (allRounds.length === 0) return null;
 
   const playerSeries = standings.slice(0, 10).map((player, i) => {

@@ -117,7 +117,7 @@ describe('Leaderboard page', () => {
   test('does not render season points trajectory chart when no results', async () => {
     mockGetLeaderboard.mockResolvedValue({
       standings: [
-        { userId: 'user1', userName: 'Alice', totalPoints: 0, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
+        { userId: 'user1', userName: 'Alice', totalPoints: 50, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
       ],
       latestRound: 1,
     });
@@ -168,7 +168,7 @@ describe('Leaderboard page', () => {
 
     await waitFor(() => {
       const svg = container.querySelector('svg');
-      expect(within(svg).getByText(/80 pts/)).toBeInTheDocument();
+      expect(within(svg).getByText('80 pts · +80 R1')).toBeInTheDocument();
     });
   });
 });
