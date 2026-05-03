@@ -117,7 +117,7 @@ describe('Leaderboard page', () => {
   test('does not render season points trajectory chart when no results', async () => {
     mockGetLeaderboard.mockResolvedValue({
       standings: [
-        { userId: 'user1', userName: 'Alice', totalPoints: 50, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
+        { userId: 'user1', userName: 'Alice', totalPoints: 0, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },
       ],
       latestRound: 1,
     });
@@ -161,10 +161,10 @@ describe('Leaderboard page', () => {
     const { container } = renderLeaderboard();
     await waitFor(() => screen.getByText(/season points trajectory/i));
 
-    const circles = container.querySelectorAll('circle');
-    expect(circles.length).toBeGreaterThan(0);
+    const aliceR1 = container.querySelector('circle[data-userid="user1"][data-round="1"]');
+    expect(aliceR1).toBeInTheDocument();
 
-    fireEvent.mouseEnter(circles[0]);
+    fireEvent.mouseEnter(aliceR1);
 
     await waitFor(() => {
       expect(screen.getByText(/80 pts/)).toBeInTheDocument();

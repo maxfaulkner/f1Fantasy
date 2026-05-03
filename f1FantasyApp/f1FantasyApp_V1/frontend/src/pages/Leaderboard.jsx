@@ -502,11 +502,13 @@ function SeasonPointsChart({ standings }) {
   const playerSeries = standings.map((player, i) => {
     const color = player.avatarColor || CHART_COLORS[i % CHART_COLORS.length];
     let cum = 0;
-    const pts = allRounds.map(round => {
+    const pts = allRounds.reduce((acc, round, idx) => {
       const rp = player.roundPoints?.[round];
-      cum += rp ?? 0;
-      return { round, cumulative: cum, roundPts: rp ?? null };
-    });
+      if (rp === undefined) return acc;
+      cum += rp;
+      acc.push({ round, roundIdx: idx, cumulative: cum, roundPts: rp });
+      return acc;
+    }, []);
     return { userId: player.userId, userName: player.userName, color, pts };
   });
 
@@ -554,7 +556,7 @@ function SeasonPointsChart({ standings }) {
         {playerSeries.map(player => {
           const isHovered = hoveredPlayer === player.userId;
           const isDimmed = hoveredPlayer !== null && !isHovered;
-          const linePoints = player.pts.map((pt, i) => `${xScale(i)},${yScale(pt.cumulative)}`).join(' ');
+          const linePoints = player.pts.map(pt => `${xScale(pt.roundIdx)},${yScale(pt.cumulative)}`).join(' ');
           return (
             <g key={player.userId} onMouseEnter={() => setHoveredPlayer(player.userId)}>
               <polyline
@@ -573,10 +575,12 @@ function SeasonPointsChart({ standings }) {
         {playerSeries.map(player => {
           const isHovered = hoveredPlayer === player.userId;
           const isDimmed = hoveredPlayer !== null && !isHovered;
-          return player.pts.map((pt, i) => (
+          return player.pts.map(pt => (
             <circle
               key={`${player.userId}-${pt.round}`}
-              cx={xScale(i)}
+              data-userid={player.userId}
+              data-round={pt.round}
+              cx={xScale(pt.roundIdx)}
               cy={yScale(pt.cumulative)}
               r={isHovered ? 4 : 2.5}
               fill={player.color}
@@ -584,7 +588,7 @@ function SeasonPointsChart({ standings }) {
               style={{ cursor: 'crosshair' }}
               onMouseEnter={() => {
                 setHoveredPlayer(player.userId);
-                setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(i), svgY: yScale(pt.cumulative) });
+                setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(pt.roundIdx), svgY: yScale(pt.cumulative) });
               }}
               onMouseLeave={() => setTooltip(null)}
             />
