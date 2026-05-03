@@ -114,7 +114,7 @@ describe('Leaderboard page', () => {
     });
   });
 
-  test('does not render season points trajectory chart when no results', async () => {
+  test('does not render season points trajectory chart when roundPoints is empty (old-records migration path)', async () => {
     mockGetLeaderboard.mockResolvedValue({
       standings: [
         { userId: 'user1', userName: 'Alice', totalPoints: 50, rank: 1, totalWins: 0, rankDelta: 0, roundPoints: {} },

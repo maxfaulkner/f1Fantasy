@@ -494,7 +494,7 @@ function SeasonPointsChart({ standings }) {
   const [tooltip, setTooltip] = useState(null);
 
   const allRounds = [...new Set(
-    standings.flatMap(s => Object.keys(s.roundPoints || {}).map(Number))
+    standings.slice(0, 10).flatMap(s => Object.keys(s.roundPoints || {}).map(Number))
   )].sort((a, b) => a - b);
 
   // old records may have totalPoints > 0 but no roundPoints entries (field added later)
@@ -591,7 +591,7 @@ function SeasonPointsChart({ standings }) {
                 setHoveredPlayer(player.userId);
                 setTooltip({ player, round: pt.round, cumulative: pt.cumulative, roundPts: pt.roundPts, svgX: xScale(pt.roundIdx), svgY: yScale(pt.cumulative) });
               }}
-              onMouseLeave={() => setTooltip(null)}
+              onMouseLeave={() => { setHoveredPlayer(null); setTooltip(null); }}
             />
           ));
         })}
