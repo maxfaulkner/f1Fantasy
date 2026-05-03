@@ -9,7 +9,6 @@ const CHIP_TYPES = ['wildcard', 'triple_captain', 'no_negative', 'bench_boost'];
 
 const DEFAULT_BUDGET = 100; // millions
 
-// Pricing formula: new_price = old_price * (1 + perf * PERF_WEIGHT + market * MARKET_WEIGHT)
 const PRICING_PERF_WEIGHT = 0.15;
 const PRICING_MARKET_WEIGHT = 0.08;
 const MIN_DRIVER_PRICE = 0.5;
