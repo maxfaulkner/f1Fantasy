@@ -63,6 +63,13 @@ function AchievementBadge({ achievement }) {
   );
 }
 
+const CHIP_LABELS = {
+  wildcard: { icon: '🃏', label: 'Wildcard' },
+  triple_captain: { icon: '👑', label: 'Triple Captain' },
+  no_negative: { icon: '🛡', label: 'No Negative' },
+  bench_boost: { icon: '💺', label: 'Bench Boost' },
+};
+
 export default function Profile() {
   const navigate = useNavigate();
   const session = getUser();
@@ -75,10 +82,12 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [selectedSeason, setSelectedSeason] = useState(null);
 
-  useEffect(() => {
+  function loadProfile(season) {
+    setLoading(true);
     Promise.all([
-      api.getProfile(),
+      api.getProfile(season),
       api.getAchievements(),
     ]).then(([prof, achs]) => {
       setProfile(prof);
@@ -86,9 +95,12 @@ export default function Profile() {
       setEditName(prof.name);
       setEditBio(prof.bio || '');
       setEditColor(prof.avatarColor || '#e10600');
+      setSelectedSeason(prof.stats?.currentSeason ?? null);
     }).catch(e => console.error(e))
       .finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadProfile(null); }, []);
 
   const handleSave = async () => {
     setSaving(true);
@@ -222,14 +234,33 @@ export default function Profile() {
           </div>
         )}
 
+        {/* Season selector */}
+        {profile.stats?.seasons?.length > 1 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}>
+            {profile.stats.seasons.map(s => (
+              <button
+                key={s}
+                onClick={() => loadProfile(s)}
+                style={{
+                  padding: '5px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  background: selectedSeason === s ? 'var(--red)' : 'rgba(255,255,255,0.06)',
+                  border: `1px solid ${selectedSeason === s ? 'var(--red)' : 'var(--border)'}`,
+                  color: '#fff', cursor: 'pointer',
+                }}
+              >{s}</button>
+            ))}
+          </div>
+        )}
+
         {/* Stats overview */}
         {profile.stats && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 24 }}>
             {[
               { label: 'Total Points', value: profile.stats.totalPoints, icon: '🏆' },
               { label: 'Rounds Played', value: profile.stats.roundsPlayed, icon: '🏁' },
-              { label: 'Avg / Round', value: profile.stats.roundsPlayed > 0 ? (profile.stats.totalPoints / profile.stats.roundsPlayed).toFixed(1) : '—', icon: '📈' },
+              { label: 'Avg / Round', value: profile.stats.avgPoints ?? (profile.stats.roundsPlayed > 0 ? Math.round(profile.stats.totalPoints / profile.stats.roundsPlayed) : 0), icon: '📈' },
               { label: 'Best Round', value: profile.stats.bestRoundPoints, icon: '⚡' },
+              { label: 'Worst Round', value: profile.stats.worstRoundPoints ?? 0, icon: '💀' },
               { label: 'Leagues', value: profile.stats.leagueCount, icon: '🏎️' },
               { label: 'Achievements', value: profile.stats.achievementCount, icon: '🎖️' },
             ].map(s => (
@@ -242,6 +273,51 @@ export default function Profile() {
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Favourite driver */}
+        {profile.stats?.favouriteDriver && (
+          <div style={{
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '14px 18px', marginBottom: 16,
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <div style={{ fontSize: 28 }}>🏎️</div>
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Favourite Driver</div>
+              <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--font-display)' }}>{profile.stats.favouriteDriver.name}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                Picked in {profile.stats.favouriteDriver.rounds} round{profile.stats.favouriteDriver.rounds !== 1 ? 's' : ''}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Chips used timeline */}
+        {profile.stats?.chipsTimeline?.length > 0 && (
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px', marginBottom: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, color: 'rgba(255,255,255,0.8)' }}>
+              Chips Used
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {profile.stats.chipsTimeline.map((c, i) => {
+                const chip = CHIP_LABELS[c.type] || { icon: '⚡', label: c.type };
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 16 }}>{chip.icon}</span>
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontWeight: 700, fontSize: 13 }}>{chip.label}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>{c.leagueName}</span>
+                    </div>
+                    <span style={{
+                      fontSize: 11, background: 'rgba(251,191,36,0.12)', color: '#fbbf24',
+                      padding: '2px 8px', borderRadius: 5, fontWeight: 600,
+                    }}>R{c.week}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

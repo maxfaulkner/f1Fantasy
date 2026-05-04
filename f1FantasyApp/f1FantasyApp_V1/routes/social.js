@@ -93,6 +93,98 @@ router.get('/achievements', async (req, res) => {
 
 // ============ PROFILE ============
 
+async function computeSeasonStats(userId, leagues, season) {
+  const availableSeasons = [...new Set(leagues.map(l => l.league.season))].sort((a, b) => a - b);
+  const currentSeason = season ? parseInt(season, 10) : (availableSeasons.length > 0 ? Math.max(...availableSeasons) : null);
+  const seasonLeagueIds = currentSeason !== null
+    ? leagues.filter(l => l.league.season === currentSeason).map(l => l.leagueId)
+    : leagues.map(l => l.leagueId);
+
+  const allTeams = await prisma.userWeeklyTeam.findMany({
+    where: { userId, leagueId: { in: seasonLeagueIds } },
+    include: {
+      drivers: { include: { driver: true } },
+      constructors: { include: { constructor: true } },
+    },
+  });
+
+  let totalPoints = 0;
+  let roundsPlayed = 0;
+  let bestRoundPoints = 0;
+  let worstRoundPoints = null;
+  const driverCount = {};
+
+  for (const team of allTeams) {
+    const driverIds = team.drivers.map(d => d.driverId);
+    const results = await prisma.raceResult.findMany({
+      where: { leagueId: team.leagueId, week: team.week, driverId: { in: driverIds } },
+    });
+    const conResults = team.constructors[0] ? await prisma.constructorRaceResult.findMany({
+      where: { leagueId: team.leagueId, week: team.week, constructorId: team.constructors[0].constructorId },
+    }) : [];
+
+    let roundPts = results.reduce((s, r) => s + r.points, 0);
+    if (team.captainId) {
+      const captainResult = results.find(r => r.driverId === team.captainId);
+      if (captainResult) {
+        const extraMultiplier = team.chipUsed === 'triple_captain' ? 2 : 1;
+        roundPts += captainResult.points * extraMultiplier;
+      }
+    }
+    if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
+    roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
+
+    if (results.length > 0 || conResults.length > 0) {
+      roundsPlayed++;
+      totalPoints += roundPts;
+      if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
+      if (worstRoundPoints === null || roundPts < worstRoundPoints) worstRoundPoints = roundPts;
+    }
+  }
+
+  for (const team of allTeams) {
+    for (const d of team.drivers) {
+      if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, count: 0 };
+      driverCount[d.driverId].count++;
+    }
+  }
+
+  const avgPoints = roundsPlayed > 0 ? Math.round(totalPoints / roundsPlayed) : 0;
+
+  const sortedDrivers = Object.values(driverCount).sort((a, b) => b.count - a.count);
+  const favouriteDriver = sortedDrivers.length > 0
+    ? { name: sortedDrivers[0].name, rounds: sortedDrivers[0].count }
+    : null;
+
+  const chips = await prisma.chip.findMany({
+    where: { userId, leagueId: { in: seasonLeagueIds }, usedWeek: { not: null } },
+    orderBy: { usedWeek: 'asc' },
+  });
+
+  const leagueNameMap = {};
+  for (const lu of leagues) {
+    if (seasonLeagueIds.includes(lu.leagueId)) leagueNameMap[lu.leagueId] = lu.league.name;
+  }
+
+  const chipsTimeline = chips.map(c => ({
+    type: c.type,
+    week: c.usedWeek,
+    leagueName: leagueNameMap[c.leagueId] || c.leagueId,
+  }));
+
+  return {
+    totalPoints,
+    roundsPlayed,
+    bestRoundPoints,
+    worstRoundPoints: worstRoundPoints ?? 0,
+    avgPoints,
+    favouriteDriver,
+    chipsTimeline,
+    seasons: availableSeasons,
+    currentSeason,
+  };
+}
+
 /**
  * GET /api/profile
  * Get current user's full profile with stats
@@ -100,6 +192,7 @@ router.get('/achievements', async (req, res) => {
 router.get('/profile', async (req, res) => {
   try {
     const userId = req.user.id;
+    const { season } = req.query;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -121,55 +214,12 @@ router.get('/profile', async (req, res) => {
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Aggregate stats across all leagues
-    const allTeams = await prisma.userWeeklyTeam.findMany({
-      where: { userId },
-      include: {
-        drivers: { include: { driver: true } },
-        constructors: { include: { constructor: true } },
-      },
-    });
-
-    // Total points across all leagues (simplified)
-    const leagueIds = user.leagues.map(l => l.leagueId);
-    let totalPoints = 0;
-    let roundsPlayed = 0;
-    let bestRoundPoints = 0;
-
-    for (const team of allTeams) {
-      const driverIds = team.drivers.map(d => d.driverId);
-      const results = await prisma.raceResult.findMany({
-        where: { leagueId: team.leagueId, week: team.week, driverId: { in: driverIds } },
-      });
-      const conResults = team.constructors[0] ? await prisma.constructorRaceResult.findMany({
-        where: { leagueId: team.leagueId, week: team.week, constructorId: team.constructors[0].constructorId },
-      }) : [];
-
-      let roundPts = results.reduce((s, r) => s + r.points, 0);
-      // Apply captain multiplier (triple_captain = 3x, regular = 2x)
-      if (team.captainId) {
-        const captainResult = results.find(r => r.driverId === team.captainId);
-        if (captainResult) {
-          const extraMultiplier = team.chipUsed === 'triple_captain' ? 2 : 1;
-          roundPts += captainResult.points * extraMultiplier;
-        }
-      }
-      if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
-      roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
-
-      if (results.length > 0 || conResults.length > 0) {
-        roundsPlayed++;
-        totalPoints += roundPts;
-        if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
-      }
-    }
+    const seasonStats = await computeSeasonStats(userId, user.leagues, season);
 
     res.json({
       ...user,
       stats: {
-        totalPoints,
-        roundsPlayed,
-        bestRoundPoints,
+        ...seasonStats,
         leagueCount: user.leagues.length,
         achievementCount: user.achievements.length,
       },
@@ -222,10 +272,11 @@ router.put('/profile', async (req, res) => {
 
 /**
  * GET /api/profile/:userId
- * Public profile for any user
+ * Public profile for any user (includes same season stats)
  */
 router.get('/profile/:userId', async (req, res) => {
   try {
+    const { season } = req.query;
     const user = await prisma.user.findUnique({
       where: { id: req.params.userId },
       select: {
@@ -236,12 +287,22 @@ router.get('/profile/:userId', async (req, res) => {
         createdAt: true,
         achievements: true,
         leagues: {
-          include: { league: { select: { id: true, name: true } } },
+          include: { league: { select: { id: true, name: true, season: true } } },
         },
       },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
+
+    const seasonStats = await computeSeasonStats(req.params.userId, user.leagues, season);
+
+    res.json({
+      ...user,
+      stats: {
+        ...seasonStats,
+        leagueCount: user.leagues.length,
+        achievementCount: user.achievements.length,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
