@@ -114,39 +114,67 @@ async function computeSeasonStats(userId, leagues, season) {
   let worstRoundPoints = null;
   const driverCount = {};
 
-  for (const team of allTeams) {
-    const driverIds = team.drivers.map(d => d.driverId);
-    const results = await prisma.raceResult.findMany({
-      where: { leagueId: team.leagueId, week: team.week, driverId: { in: driverIds } },
-    });
-    const conResults = team.constructors[0] ? await prisma.constructorRaceResult.findMany({
-      where: { leagueId: team.leagueId, week: team.week, constructorId: team.constructors[0].constructorId },
-    }) : [];
+  if (allTeams.length > 0) {
+    const teamLeagueIds = allTeams.map(t => t.leagueId);
+    const teamWeeks = allTeams.map(t => t.week);
 
-    let roundPts = results.reduce((s, r) => s + r.points, 0);
-    if (team.captainId) {
-      const captainResult = results.find(r => r.driverId === team.captainId);
-      if (captainResult) {
-        const extraMultiplier = team.chipUsed === 'triple_captain' ? 2 : 1;
-        roundPts += captainResult.points * extraMultiplier;
-      }
+    const [allResults, allConResults] = await Promise.all([
+      prisma.raceResult.findMany({
+        where: { leagueId: { in: teamLeagueIds }, week: { in: teamWeeks } },
+      }),
+      prisma.constructorRaceResult.findMany({
+        where: { leagueId: { in: teamLeagueIds }, week: { in: teamWeeks } },
+      }),
+    ]);
+
+    const resultsByLeagueWeek = new Map();
+    for (const r of allResults) {
+      const key = `${r.leagueId}:${r.week}`;
+      if (!resultsByLeagueWeek.has(key)) resultsByLeagueWeek.set(key, []);
+      resultsByLeagueWeek.get(key).push(r);
     }
-    if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
-    roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
 
-    if (results.length > 0 || conResults.length > 0) {
-      roundsPlayed++;
-      totalPoints += roundPts;
-      if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
-      if (worstRoundPoints === null || roundPts < worstRoundPoints) worstRoundPoints = roundPts;
-      for (const d of team.drivers) {
-        if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, count: 0 };
-        driverCount[d.driverId].count++;
+    const conResultsByKey = new Map();
+    for (const r of allConResults) {
+      const key = `${r.leagueId}:${r.week}:${r.constructorId}`;
+      if (!conResultsByKey.has(key)) conResultsByKey.set(key, []);
+      conResultsByKey.get(key).push(r);
+    }
+
+    for (const team of allTeams) {
+      const driverIds = team.drivers.map(d => d.driverId);
+      const weekResults = resultsByLeagueWeek.get(`${team.leagueId}:${team.week}`) || [];
+      const results = weekResults.filter(r => driverIds.includes(r.driverId));
+      const conKey = team.constructors[0]
+        ? `${team.leagueId}:${team.week}:${team.constructors[0].constructorId}`
+        : null;
+      const conResults = conKey ? (conResultsByKey.get(conKey) || []) : [];
+
+      let roundPts = results.reduce((s, r) => s + r.points, 0);
+      if (team.captainId) {
+        const captainResult = results.find(r => r.driverId === team.captainId);
+        if (captainResult) {
+          const extraMultiplier = team.chipUsed === 'triple_captain' ? 2 : 1;
+          roundPts += captainResult.points * extraMultiplier;
+        }
+      }
+      if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
+      roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
+
+      if (results.length > 0 || conResults.length > 0) {
+        roundsPlayed++;
+        totalPoints += roundPts;
+        if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
+        if (worstRoundPoints === null || roundPts < worstRoundPoints) worstRoundPoints = roundPts;
+        for (const d of team.drivers) {
+          if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, count: 0 };
+          driverCount[d.driverId].count++;
+        }
       }
     }
   }
 
-  const avgPoints = roundsPlayed > 0 ? Math.round(totalPoints / roundsPlayed) : 0;
+  const avgPoints = roundsPlayed > 0 ? parseFloat((totalPoints / roundsPlayed).toFixed(1)) : 0;
 
   const sortedDrivers = Object.values(driverCount).sort((a, b) => b.count - a.count);
   const favouriteDriver = sortedDrivers.length > 0

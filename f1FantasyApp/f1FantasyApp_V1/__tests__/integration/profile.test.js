@@ -53,10 +53,12 @@ describe('GET /api/profile', () => {
     prisma.user.findUnique.mockResolvedValue(baseUser);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([baseTeam]);
     prisma.raceResult.findMany.mockResolvedValue([
-      { driverId: 'driver1', points: 25 },
-      { driverId: 'driver2', points: 10 },
+      { driverId: 'driver1', points: 25, leagueId: 'lg1', week: 1 },
+      { driverId: 'driver2', points: 10, leagueId: 'lg1', week: 1 },
     ]);
-    prisma.constructorRaceResult.findMany.mockResolvedValue([{ totalPoints: 30 }]);
+    prisma.constructorRaceResult.findMany.mockResolvedValue([
+      { constructorId: 'con1', totalPoints: 30, leagueId: 'lg1', week: 1 },
+    ]);
     prisma.chip.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/api/profile').set(AUTH());
@@ -74,7 +76,6 @@ describe('GET /api/profile', () => {
   });
 
   test('200: computes favourite driver as most-selected across teams', async () => {
-    // team1: driver1 + driver2, team2: driver1 only
     const team2 = {
       ...baseTeam,
       id: 'team2',
@@ -84,12 +85,15 @@ describe('GET /api/profile', () => {
 
     prisma.user.findUnique.mockResolvedValue(baseUser);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([baseTeam, team2]);
-    prisma.raceResult.findMany
-      .mockResolvedValueOnce([{ driverId: 'driver1', points: 20 }, { driverId: 'driver2', points: 10 }])
-      .mockResolvedValueOnce([{ driverId: 'driver1', points: 15 }]);
-    prisma.constructorRaceResult.findMany
-      .mockResolvedValueOnce([{ totalPoints: 20 }])
-      .mockResolvedValueOnce([{ totalPoints: 15 }]);
+    prisma.raceResult.findMany.mockResolvedValue([
+      { driverId: 'driver1', points: 20, leagueId: 'lg1', week: 1 },
+      { driverId: 'driver2', points: 10, leagueId: 'lg1', week: 1 },
+      { driverId: 'driver1', points: 15, leagueId: 'lg1', week: 2 },
+    ]);
+    prisma.constructorRaceResult.findMany.mockResolvedValue([
+      { constructorId: 'con1', totalPoints: 20, leagueId: 'lg1', week: 1 },
+      { constructorId: 'con1', totalPoints: 15, leagueId: 'lg1', week: 2 },
+    ]);
     prisma.chip.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/api/profile').set(AUTH());
@@ -102,7 +106,9 @@ describe('GET /api/profile', () => {
   test('200: includes chips timeline for used chips', async () => {
     prisma.user.findUnique.mockResolvedValue(baseUser);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([baseTeam]);
-    prisma.raceResult.findMany.mockResolvedValue([{ driverId: 'driver1', points: 20 }]);
+    prisma.raceResult.findMany.mockResolvedValue([
+      { driverId: 'driver1', points: 20, leagueId: 'lg1', week: 1 },
+    ]);
     prisma.constructorRaceResult.findMany.mockResolvedValue([]);
     prisma.chip.findMany.mockResolvedValue([
       { id: 'chip1', type: 'wildcard', usedWeek: 1, leagueId: 'lg1' },
@@ -125,12 +131,12 @@ describe('GET /api/profile', () => {
     prisma.user.findUnique.mockResolvedValue(baseUser);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([baseTeam, team2]);
     // round1: captain (driver1) gets 50 pts → 50 + 50 bonus = 100
-    prisma.raceResult.findMany
-      .mockResolvedValueOnce([{ driverId: 'driver1', points: 50 }])
-      .mockResolvedValueOnce([{ driverId: 'driver1', points: 5 }]);
-    prisma.constructorRaceResult.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+    // round2: captain (driver1) gets 5 pts → 5 + 5 bonus = 10
+    prisma.raceResult.findMany.mockResolvedValue([
+      { driverId: 'driver1', points: 50, leagueId: 'lg1', week: 1 },
+      { driverId: 'driver1', points: 5, leagueId: 'lg1', week: 2 },
+    ]);
+    prisma.constructorRaceResult.findMany.mockResolvedValue([]);
     prisma.chip.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/api/profile').set(AUTH());
@@ -152,7 +158,9 @@ describe('GET /api/profile', () => {
 
     prisma.user.findUnique.mockResolvedValue(userWithTwoSeasons);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([oldTeam]);
-    prisma.raceResult.findMany.mockResolvedValue([{ driverId: 'driver1', points: 12 }]);
+    prisma.raceResult.findMany.mockResolvedValue([
+      { driverId: 'driver1', points: 12, leagueId: 'lg2', week: 5 },
+    ]);
     prisma.constructorRaceResult.findMany.mockResolvedValue([]);
     prisma.chip.findMany.mockResolvedValue([]);
 
@@ -197,8 +205,12 @@ describe('GET /api/profile/:userId', () => {
 
     prisma.user.findUnique.mockResolvedValue(publicUser);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([bobTeam]);
-    prisma.raceResult.findMany.mockResolvedValue([{ driverId: 'driver1', points: 18 }]);
-    prisma.constructorRaceResult.findMany.mockResolvedValue([{ totalPoints: 10 }]);
+    prisma.raceResult.findMany.mockResolvedValue([
+      { driverId: 'driver1', points: 18, leagueId: 'lg1', week: 1 },
+    ]);
+    prisma.constructorRaceResult.findMany.mockResolvedValue([
+      { constructorId: 'con1', totalPoints: 10, leagueId: 'lg1', week: 1 },
+    ]);
     prisma.chip.findMany.mockResolvedValue([]);
 
     const res = await request(app).get('/api/profile/user2').set(AUTH());

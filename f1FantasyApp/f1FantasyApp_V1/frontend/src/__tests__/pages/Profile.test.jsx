@@ -172,7 +172,10 @@ describe('Profile page', () => {
     };
     mockGetProfile
       .mockResolvedValueOnce(profileMultiSeason)
-      .mockResolvedValueOnce({ ...baseProfile, stats: { ...baseStats, seasons: [2025, 2026], currentSeason: 2025 } });
+      .mockResolvedValueOnce({
+        ...baseProfile,
+        stats: { ...baseStats, totalPoints: 80, seasons: [2025, 2026], currentSeason: 2025 },
+      });
 
     renderProfile();
     await waitFor(() => screen.getByRole('button', { name: '2025' }));
@@ -181,6 +184,7 @@ describe('Profile page', () => {
 
     await waitFor(() => {
       expect(mockGetProfile).toHaveBeenCalledWith(2025);
+      expect(screen.getByText('80')).toBeInTheDocument();
     });
   });
 });
