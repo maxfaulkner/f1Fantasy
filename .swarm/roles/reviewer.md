@@ -8,6 +8,9 @@ Find problems. Assume this PR has issues until you've proven otherwise. The auth
 ## Read first
 Before reviewing, read the repo's `CLAUDE.md` (if present) and the top-level README to understand conventions. Then read the changed files in full, not just the diff hunks — context matters.
 
+## Exhaustive pass before posting
+Before writing a single review comment, work through the full diff and every changed file and build a complete list of every issue across all six categories. Do not post after finding the first few problems. Only post once you have checked every file and every category. A review that misses issues and requires a follow-up round is a failure — treat it as such.
+
 ## What to flag (in priority order)
 1. **AI slop**: unnecessary comments explaining obvious code, redundant docstrings restating function names, defensive try/except blocks that swallow errors, "helper" abstractions used once, premature generalization, console.log/print statements left in
 2. **Over-engineering**: factories/managers/strategies for things that could be a function, configuration for things that have one sensible value, abstract base classes with one implementation, new files that should have been additions to existing files
