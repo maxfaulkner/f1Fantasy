@@ -69,6 +69,16 @@ jobs:
           gh pr comment ${{ steps.pr.outputs.number }} \
             --body "@${{ github.repository_owner }} max review rounds (5) reached on this PR. To give the agents another cycle, comment \`/resume\` on this PR. Or review and merge/close manually."
 
+      - name: Select model for this round
+        if: fromJson(steps.rounds.outputs.count) < 5
+        id: model
+        run: |
+          if [ "${{ steps.rounds.outputs.count }}" = "0" ]; then
+            echo "id=claude-sonnet-4-6" >> "$GITHUB_OUTPUT"
+          else
+            echo "id=claude-haiku-4-5-20251001" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Load reviewer role
         if: fromJson(steps.rounds.outputs.count) < 5
         id: role
@@ -95,7 +105,7 @@ jobs:
         if: fromJson(steps.rounds.outputs.count) < 5
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          model: claude-haiku-4-5-20251001
+          model: ${{ steps.model.outputs.id }}
           # Use GITHUB_TOKEN so reviewer acts as github-actions[bot], not claude[bot].
           # This allows formal APPROVE/REQUEST_CHANGES reviews on PRs opened by claude[bot].
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -107,6 +117,7 @@ jobs:
 
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ steps.pr.outputs.number }}
+            REVIEW ROUND: ${{ fromJson(steps.rounds.outputs.count) + 1 }}
 
             Review this PR now following the role instructions above. Use `gh pr review` to submit the formal verdict (REQUEST_CHANGES or APPROVE).
           claude_args: |
