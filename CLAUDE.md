@@ -13,6 +13,9 @@ This repo contains an F1 fantasy app in `f1FantasyApp/`. The other top-level fol
 - The repo has multiple languages (JS, Swift, Python). Each agent should detect the relevant stack from the changed files and act accordingly.
 - Tests live next to the code they test where the existing patterns put them.
 
+## Memory
+Keep the project memory files at `/Users/maxfaulkner/.claude/projects/-Users-maxfaulkner-Documents-F1FantasyRepo-f1Fantasy/memory/` up to date throughout every session — do not wait to be asked. Update or create memory entries whenever you learn something worth preserving: project decisions, user preferences, architectural context, ongoing work, or anything non-obvious that would help a future agent pick up where you left off. Index every file in `MEMORY.md`. Prefer updating existing entries over creating duplicates.
+
 ## Out of scope for the swarm
 - The other top-level folders mentioned above
 - Anything in `.swarm/` (the swarm's own configuration)

@@ -63,7 +63,7 @@ The reviewer is another AI agent. It is sometimes wrong.
 - If you and the reviewer disagree after 2 back-and-forths on the same point: tag the repo owner in a comment summarizing the disagreement and stop iterating on that point.
 
 ## Stop conditions
-- Maximum 3 review rounds per PR. After round 3, leave a comment tagging the repo owner and do not push further changes.
+- Maximum 5 review rounds per PR. After round 5, leave a comment tagging the repo owner and do not push further changes.
 - If existing tests fail after your change and you can't fix them in <30 minutes of effort, leave a comment explaining and tag the owner.
 - Never force-push. Never rebase a branch with review comments on it.
 - Never merge a PR. Only the human merges.
