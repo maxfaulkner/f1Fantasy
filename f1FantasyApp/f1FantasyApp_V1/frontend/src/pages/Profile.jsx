@@ -10,7 +10,7 @@ const AVATAR_COLORS = [
   '#a855f7', '#ec4899',
 ];
 
-const ACHIEVEMENT_ICONS = {
+export const ACHIEVEMENT_ICONS = {
   first_win: '🏆',
   podium_finish: '🥈',
   perfect_round: '🤖',
@@ -25,7 +25,7 @@ const ACHIEVEMENT_ICONS = {
   rocket_start: '🚀',
 };
 
-function AvatarCircle({ name, color, size = 72 }) {
+export function AvatarCircle({ name, color, size = 72 }) {
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%',
@@ -63,7 +63,7 @@ function AchievementBadge({ achievement }) {
   );
 }
 
-const CHIP_LABELS = {
+export const CHIP_LABELS = {
   wildcard: { icon: '🃏', label: 'Wildcard' },
   triple_captain: { icon: '👑', label: 'Triple Captain' },
   no_negative: { icon: '🛡', label: 'No Negative' },
@@ -96,8 +96,7 @@ export default function Profile() {
       setEditBio(prof.bio || '');
       setEditColor(prof.avatarColor || '#e10600');
       setSelectedSeason(prof.stats?.currentSeason ?? null);
-    }).catch(e => console.error(e))
-      .finally(() => setLoading(false));
+    }).finally(() => setLoading(false));
   }
 
   useEffect(() => { loadProfile(null); }, []);
@@ -258,7 +257,7 @@ export default function Profile() {
             {[
               { label: 'Total Points', value: profile.stats.totalPoints, icon: '🏆' },
               { label: 'Rounds Played', value: profile.stats.roundsPlayed, icon: '🏁' },
-              { label: 'Avg / Round', value: profile.stats.avgPoints ?? (profile.stats.roundsPlayed > 0 ? Math.round(profile.stats.totalPoints / profile.stats.roundsPlayed) : 0), icon: '📈' },
+              { label: 'Avg / Round', value: profile.stats.avgPoints, icon: '📈' },
               { label: 'Best Round', value: profile.stats.bestRoundPoints, icon: '⚡' },
               { label: 'Worst Round', value: profile.stats.worstRoundPoints ?? 0, icon: '💀' },
               { label: 'Leagues', value: profile.stats.leagueCount, icon: '🏎️' },

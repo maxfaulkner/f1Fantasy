@@ -1,4 +1,3 @@
-// __tests__/integration/profile.test.js
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../../app');
@@ -162,6 +161,11 @@ describe('GET /api/profile', () => {
     expect(res.status).toBe(200);
     expect(res.body.stats.currentSeason).toBe(2025);
     expect(res.body.stats.seasons).toEqual([2025, 2026]);
+    // driver1 (12pts) + captain bonus (12pts) = 24 total
+    expect(res.body.stats.totalPoints).toBe(24);
+    expect(res.body.stats.roundsPlayed).toBe(1);
+    // user is in 2 leagues total but only 1 belongs to the 2025 season
+    expect(res.body.stats.leagueCount).toBe(1);
   });
 
   test('404: user not found', async () => {

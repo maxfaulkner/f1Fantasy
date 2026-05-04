@@ -139,13 +139,10 @@ async function computeSeasonStats(userId, leagues, season) {
       totalPoints += roundPts;
       if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
       if (worstRoundPoints === null || roundPts < worstRoundPoints) worstRoundPoints = roundPts;
-    }
-  }
-
-  for (const team of allTeams) {
-    for (const d of team.drivers) {
-      if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, count: 0 };
-      driverCount[d.driverId].count++;
+      for (const d of team.drivers) {
+        if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, count: 0 };
+        driverCount[d.driverId].count++;
+      }
     }
   }
 
@@ -182,6 +179,7 @@ async function computeSeasonStats(userId, leagues, season) {
     chipsTimeline,
     seasons: availableSeasons,
     currentSeason,
+    leagueCount: seasonLeagueIds.length,
   };
 }
 
@@ -220,7 +218,6 @@ router.get('/profile', async (req, res) => {
       ...user,
       stats: {
         ...seasonStats,
-        leagueCount: user.leagues.length,
         achievementCount: user.achievements.length,
       },
     });
@@ -299,7 +296,6 @@ router.get('/profile/:userId', async (req, res) => {
       ...user,
       stats: {
         ...seasonStats,
-        leagueCount: user.leagues.length,
         achievementCount: user.achievements.length,
       },
     });

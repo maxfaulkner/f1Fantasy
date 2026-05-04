@@ -2,44 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
-
-const CHIP_LABELS = {
-  wildcard: { icon: '🃏', label: 'Wildcard' },
-  triple_captain: { icon: '👑', label: 'Triple Captain' },
-  no_negative: { icon: '🛡', label: 'No Negative' },
-  bench_boost: { icon: '💺', label: 'Bench Boost' },
-};
-
-const ACHIEVEMENT_ICONS = {
-  first_win: '🏆',
-  podium_finish: '🥈',
-  perfect_round: '🤖',
-  on_fire: '🔥',
-  top_pick: '💎',
-  veteran: '🏁',
-  big_spender: '💸',
-  champion: '👑',
-  captain_call: '🎯',
-  early_bird: '✅',
-  social_butterfly: '🗣️',
-  rocket_start: '🚀',
-};
-
-function AvatarCircle({ name, color, size = 72 }) {
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: '50%',
-      background: color || '#e10600',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontWeight: 900, fontSize: size * 0.4,
-      color: '#fff', fontFamily: 'var(--font-display)',
-      boxShadow: `0 0 20px ${color || '#e10600'}40`,
-      flexShrink: 0,
-    }}>
-      {name?.[0]?.toUpperCase()}
-    </div>
-  );
-}
+import { CHIP_LABELS, ACHIEVEMENT_ICONS, AvatarCircle } from './Profile';
 
 export default function PublicProfile() {
   const { userId } = useParams();

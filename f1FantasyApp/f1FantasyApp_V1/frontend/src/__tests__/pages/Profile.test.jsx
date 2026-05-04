@@ -1,4 +1,3 @@
-// src/__tests__/pages/Profile.test.jsx
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Profile from '../../pages/Profile';
