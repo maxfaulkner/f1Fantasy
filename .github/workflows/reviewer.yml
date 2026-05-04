@@ -73,7 +73,10 @@ jobs:
         if: fromJson(steps.rounds.outputs.count) < 5
         id: model
         run: |
-          if [ "${{ steps.rounds.outputs.count }}" = "0" ]; then
+          count="${{ steps.rounds.outputs.count }}"
+          round=$((count + 1))
+          echo "round=${round}" >> "$GITHUB_OUTPUT"
+          if [ "${count}" = "0" ]; then
             echo "id=claude-sonnet-4-6" >> "$GITHUB_OUTPUT"
           else
             echo "id=claude-haiku-4-5-20251001" >> "$GITHUB_OUTPUT"
@@ -117,7 +120,7 @@ jobs:
 
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ steps.pr.outputs.number }}
-            REVIEW ROUND: ${{ fromJson(steps.rounds.outputs.count) + 1 }}
+            REVIEW ROUND: ${{ steps.model.outputs.round }}
 
             Review this PR now following the role instructions above. Use `gh pr review` to submit the formal verdict (REQUEST_CHANGES or APPROVE).
           claude_args: |
