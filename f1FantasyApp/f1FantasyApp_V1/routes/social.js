@@ -250,7 +250,6 @@ router.get('/profile', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Profile fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -380,8 +379,8 @@ router.get('/leagues/:leagueId/stats', async (req, res) => {
           captainBonus = capResult.points * extraMultiplier;
         }
       }
-      if (team.chipUsed === 'no_negative') points = Math.max(0, points);
       points += captainBonus;
+      if (team.chipUsed === 'no_negative') points = Math.max(0, points);
       points += conResult?.totalPoints || 0;
 
       cumulative += points;

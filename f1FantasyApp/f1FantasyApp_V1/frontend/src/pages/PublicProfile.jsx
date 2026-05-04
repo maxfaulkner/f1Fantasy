@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
-import { ACHIEVEMENT_ICONS, AvatarCircle, SeasonSelector, StatsGrid, FavouriteDriverCard, ChipsTimeline } from './Profile';
+import { AchievementBadge, AvatarCircle, SeasonSelector, StatsGrid, FavouriteDriverCard, ChipsTimeline } from './Profile';
 
 export default function PublicProfile() {
   const { userId } = useParams();
@@ -85,25 +85,7 @@ export default function PublicProfile() {
               </span>
             </h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
-              {profile.achievements.map(a => {
-                const icon = ACHIEVEMENT_ICONS[a.type] || '🏅';
-                return (
-                  <div
-                    key={a.id}
-                    title={a.description}
-                    style={{
-                      background: 'var(--bg-card)', border: '1px solid var(--border)',
-                      borderRadius: 10, padding: '10px 12px', textAlign: 'center',
-                    }}
-                  >
-                    <div style={{ fontSize: 24, marginBottom: 4 }}>{icon}</div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#fff', marginBottom: 2 }}>{a.title}</div>
-                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
-                      {new Date(a.unlockedAt).toLocaleDateString()}
-                    </div>
-                  </div>
-                );
-              })}
+              {profile.achievements.map(a => <AchievementBadge key={a.id} achievement={a} />)}
             </div>
           </div>
         )}

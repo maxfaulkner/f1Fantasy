@@ -41,7 +41,7 @@ export function AvatarCircle({ name, color, size = 72 }) {
   );
 }
 
-function AchievementBadge({ achievement }) {
+export function AchievementBadge({ achievement }) {
   const icon = ACHIEVEMENT_ICONS[achievement.type] || '🏅';
   return (
     <div
@@ -97,7 +97,7 @@ export function StatsGrid({ stats }) {
         { label: 'Rounds Played', value: stats.roundsPlayed, icon: '🏁' },
         { label: 'Avg / Round', value: stats.avgPoints, icon: '📈' },
         { label: 'Best Round', value: stats.bestRoundPoints, icon: '⚡' },
-        { label: 'Worst Round', value: stats.worstRoundPoints ?? 0, icon: '💀' },
+        { label: 'Worst Round', value: stats.worstRoundPoints, icon: '💀' },
         { label: 'Leagues', value: stats.leagueCount, icon: '🏎️' },
         { label: 'Achievements', value: stats.achievementCount, icon: '🎖️' },
       ].map(s => (
