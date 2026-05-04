@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
-import { AchievementBadge, AvatarCircle, SeasonSelector, StatsGrid, FavouriteDriverCard, ChipsTimeline } from './Profile';
+import { AchievementBadge, AvatarCircle, SeasonSelector, StatsGrid, FavouriteDriverCard, ChipsTimeline } from '../components/ProfileShared';
 
 export default function PublicProfile() {
   const { userId } = useParams();
@@ -13,6 +13,7 @@ export default function PublicProfile() {
 
   function loadProfile(season) {
     setLoading(true);
+    setError('');
     api.getPublicProfile(userId, season)
       .then(p => {
         setProfile(p);

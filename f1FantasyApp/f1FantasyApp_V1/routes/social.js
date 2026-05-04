@@ -95,7 +95,10 @@ router.get('/achievements', async (req, res) => {
 
 async function computeSeasonStats(userId, leagues, season) {
   const availableSeasons = [...new Set(leagues.map(l => l.league.season))].sort((a, b) => a - b);
-  const currentSeason = season ? parseInt(season, 10) : (availableSeasons.length > 0 ? Math.max(...availableSeasons) : null);
+  const requestedSeason = season ? parseInt(season, 10) : null;
+  const currentSeason = (requestedSeason !== null && !isNaN(requestedSeason) && availableSeasons.includes(requestedSeason))
+    ? requestedSeason
+    : (availableSeasons.length > 0 ? Math.max(...availableSeasons) : null);
   const seasonLeagueIds = currentSeason !== null
     ? leagues.filter(l => l.league.season === currentSeason).map(l => l.leagueId)
     : leagues.map(l => l.leagueId);
@@ -115,16 +118,17 @@ async function computeSeasonStats(userId, leagues, season) {
   const driverCount = {};
 
   if (allTeams.length > 0) {
-    const teamLeagueIds = allTeams.map(t => t.leagueId);
-    const teamWeeks = allTeams.map(t => t.week);
+    const leaguePairConditions = Object.entries(
+      allTeams.reduce((acc, t) => {
+        if (!acc[t.leagueId]) acc[t.leagueId] = new Set();
+        acc[t.leagueId].add(t.week);
+        return acc;
+      }, {})
+    ).map(([leagueId, weeks]) => ({ leagueId, week: { in: [...weeks] } }));
 
     const [allResults, allConResults] = await Promise.all([
-      prisma.raceResult.findMany({
-        where: { leagueId: { in: teamLeagueIds }, week: { in: teamWeeks } },
-      }),
-      prisma.constructorRaceResult.findMany({
-        where: { leagueId: { in: teamLeagueIds }, week: { in: teamWeeks } },
-      }),
+      prisma.raceResult.findMany({ where: { OR: leaguePairConditions } }),
+      prisma.constructorRaceResult.findMany({ where: { OR: leaguePairConditions } }),
     ]);
 
     const resultsByLeagueWeek = new Map();
@@ -136,9 +140,7 @@ async function computeSeasonStats(userId, leagues, season) {
 
     const conResultsByKey = new Map();
     for (const r of allConResults) {
-      const key = `${r.leagueId}:${r.week}:${r.constructorId}`;
-      if (!conResultsByKey.has(key)) conResultsByKey.set(key, []);
-      conResultsByKey.get(key).push(r);
+      conResultsByKey.set(`${r.leagueId}:${r.week}:${r.constructorId}`, r);
     }
 
     for (const team of allTeams) {
@@ -148,7 +150,7 @@ async function computeSeasonStats(userId, leagues, season) {
       const conKey = team.constructors[0]
         ? `${team.leagueId}:${team.week}:${team.constructors[0].constructorId}`
         : null;
-      const conResults = conKey ? (conResultsByKey.get(conKey) || []) : [];
+      const conResult = conKey ? conResultsByKey.get(conKey) : null;
 
       let roundPts = results.reduce((s, r) => s + r.points, 0);
       if (team.captainId) {
@@ -159,16 +161,16 @@ async function computeSeasonStats(userId, leagues, season) {
         }
       }
       if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
-      roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
+      roundPts += conResult ? conResult.totalPoints : 0;
 
-      if (results.length > 0 || conResults.length > 0) {
+      if (results.length > 0 || conResult) {
         roundsPlayed++;
         totalPoints += roundPts;
         if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
         if (worstRoundPoints === null || roundPts < worstRoundPoints) worstRoundPoints = roundPts;
         for (const d of team.drivers) {
-          if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, count: 0 };
-          driverCount[d.driverId].count++;
+          if (!driverCount[d.driverId]) driverCount[d.driverId] = { name: d.driver.name, weeks: new Set() };
+          driverCount[d.driverId].weeks.add(team.week);
         }
       }
     }
@@ -176,9 +178,9 @@ async function computeSeasonStats(userId, leagues, season) {
 
   const avgPoints = roundsPlayed > 0 ? parseFloat((totalPoints / roundsPlayed).toFixed(1)) : 0;
 
-  const sortedDrivers = Object.values(driverCount).sort((a, b) => b.count - a.count);
+  const sortedDrivers = Object.values(driverCount).sort((a, b) => b.weeks.size - a.weeks.size);
   const favouriteDriver = sortedDrivers.length > 0
-    ? { name: sortedDrivers[0].name, rounds: sortedDrivers[0].count }
+    ? { name: sortedDrivers[0].name, rounds: sortedDrivers[0].weeks.size }
     : null;
 
   const chips = await prisma.chip.findMany({
@@ -436,7 +438,6 @@ router.get('/leagues/:leagueId/stats', async (req, res) => {
       resultsExist,
     });
   } catch (error) {
-    console.error('Stats error:', error);
     res.status(500).json({ error: error.message });
   }
 });
