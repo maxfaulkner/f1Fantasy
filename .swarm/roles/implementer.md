@@ -42,6 +42,15 @@ Before running `gh pr create`, work through this checklist against your own diff
 **Guard conditions**
 - For any guard you added or changed: trace the realistic conditions that make it fire. Does it ever suppress correct data? Is it reachable given upstream conditions, or does something upstream already handle the same case?
 
+**Input validation**
+- For every new API endpoint or query parameter: what happens if the value is missing, empty, or the wrong type? `parseInt` of a non-numeric string returns `NaN` — `NaN !== anything` silently returns empty results. Validate and reject bad input explicitly at the boundary.
+
+**Database queries**
+- Scan every loop you wrote. If you're querying the database inside a loop, replace it with a single batched query before the loop and key the results in memory. N+1 queries are a correctness issue under load, not just a performance concern.
+
+**Cross-file duplication**
+- For every constant, component, or utility you defined: run `Grep` across the codebase to check it isn't already defined elsewhere, and check that you haven't defined it in multiple files yourself. Duplicated definitions diverge silently — one gets updated, the other doesn't.
+
 Only open the PR when every item above is satisfied.
 
 ## PR creation (triggered by `approved` label on an issue)
