@@ -79,6 +79,8 @@ export const api = {
 
   // Stats
   getStats: (leagueId) => request('GET', `/api/leagues/${leagueId}/stats`),
+  getConstructorStandings: (leagueId, week) =>
+    request('GET', `/api/leagues/${leagueId}/constructor-standings/${week}`),
 
   // Chat
   getChat: (leagueId, limit = 50) =>

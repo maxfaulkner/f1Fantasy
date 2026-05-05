@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../api';
 import Navbar from '../components/Navbar';
 import LeagueNav from '../components/LeagueNav';
+import { teamColor } from '../constants/teamColors';
 
 /* ── Info tooltip ────────────────────────────────────────────── */
 function InfoTooltip({ text }) {
@@ -184,6 +185,13 @@ export default function Stats() {
   const [optimalLoading, setOptimalLoading] = useState(false);
   const [optimalOpen, setOptimalOpen] = useState(false);
   const [optimalError, setOptimalError] = useState(null);
+  const [tab, setTab] = useState('my-stats');
+  const [ctorStandings, setCtorStandings] = useState(null);
+  const [ctorLoading, setCtorLoading] = useState(false);
+  const [ctorWeek, setCtorWeek] = useState(null);
+  const [ctorSortBy, setCtorSortBy] = useState('wccPosition');
+  const [ctorSortDir, setCtorSortDir] = useState('asc');
+  const [ctorError, setCtorError] = useState(null);
 
   function selectRound(round) {
     setSelectedRound(round);
@@ -202,7 +210,11 @@ export default function Stats() {
       .then(data => {
         setStats(data);
         if (data.rounds?.length > 0) {
-          setSelectedRound(data.rounds[data.rounds.length - 1]);
+          const latest = data.rounds[data.rounds.length - 1];
+          setSelectedRound(latest);
+          setCtorWeek(latest.week);
+        } else {
+          setCtorWeek(1);
         }
       })
       .catch(e => setError(e.message))
@@ -220,6 +232,25 @@ export default function Stats() {
       .catch(e => { if (e?.status !== 404) setOptimalError(e?.message || 'Failed to load Dream Team'); })
       .finally(() => setOptimalLoading(false));
   }, [leagueId, selectedRound?.week]);
+
+  useEffect(() => {
+    if (ctorWeek === null) return;
+    setCtorLoading(true);
+    setCtorError(null);
+    api.getConstructorStandings(leagueId, ctorWeek)
+      .then(data => setCtorStandings(data))
+      .catch(e => setCtorError(e.message || 'Failed to load constructor standings'))
+      .finally(() => setCtorLoading(false));
+  }, [leagueId, ctorWeek]);
+
+  function handleCtorSort(key) {
+    if (ctorSortBy === key) {
+      setCtorSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCtorSortBy(key);
+      setCtorSortDir(['wccPosition', 'name'].includes(key) ? 'asc' : 'desc');
+    }
+  }
 
   const currentWeek = stats?.rounds?.length > 0
     ? stats.rounds[stats.rounds.length - 1].week
@@ -301,10 +332,28 @@ export default function Stats() {
       <LeagueNav leagueId={leagueId} week={currentWeek} leagueName={leagueName} />
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 16px' }}>
         {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ margin: '4px 0 0', fontSize: 30, fontFamily: 'var(--font-display)', fontWeight: 800 }}>My Season Stats</h1>
+        <div style={{ marginBottom: 16 }}>
+          <h1 style={{ margin: '4px 0 0', fontSize: 30, fontFamily: 'var(--font-display)', fontWeight: 800 }}>Stats</h1>
         </div>
 
+        {/* Tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 20 }}>
+          {[['my-stats', 'My Stats'], ['constructors', 'Constructors']].map(([t, label]) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                background: tab === t ? 'var(--red)' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${tab === t ? 'var(--red)' : 'var(--border)'}`,
+                borderRadius: 8, padding: '6px 16px', cursor: 'pointer',
+                color: tab === t ? '#fff' : 'var(--text-3)',
+                fontWeight: 700, fontSize: 13, fontFamily: 'inherit',
+              }}
+            >{label}</button>
+          ))}
+        </div>
+
+        {tab === 'my-stats' && (<>
         {/* Summary cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 24 }}>
           <StatCard label="Total Points" value={stats.totalPoints} icon="🏆" color="#fff"
@@ -595,7 +644,117 @@ export default function Stats() {
             </div>
           );
         })()}
+        </>)}
+
+        {tab === 'constructors' && (() => {
+          const ctorSorted = [...(ctorStandings?.constructors ?? [])].sort((a, b) => {
+            let cmp;
+            if (ctorSortBy === 'name') cmp = b.name.localeCompare(a.name);
+            else if (ctorSortBy === 'wccPosition') cmp = (b.wccPosition ?? 99) - (a.wccPosition ?? 99);
+            else if (ctorSortBy === 'wccPoints') cmp = (b.wccPoints ?? -1) - (a.wccPoints ?? -1);
+            else if (ctorSortBy === 'fantasyPoints') cmp = b.fantasyPoints - a.fantasyPoints;
+            else if (ctorSortBy === 'price') cmp = (b.price ?? -1) - (a.price ?? -1);
+            else cmp = b.ownershipPct - a.ownershipPct;
+            return ctorSortDir === 'asc' ? -cmp : cmp;
+          });
+
+          return (
+            <div>
+              {/* Week nav */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '6px 10px', width: 'fit-content', marginBottom: 20 }}>
+                <button onClick={() => setCtorWeek(w => Math.max(1, w - 1))} style={sNavBtn} disabled={(ctorWeek ?? 1) <= 1}>‹</button>
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 18, minWidth: 80, textAlign: 'center' }}>Round {ctorWeek ?? 1}</span>
+                <button onClick={() => setCtorWeek(w => (w ?? 1) + 1)} style={sNavBtn}>›</button>
+              </div>
+
+              {ctorError ? (
+                <div style={{ background: 'rgba(225,6,0,0.1)', border: '1px solid rgba(225,6,0,0.3)', borderRadius: 8, padding: 16, color: '#fca5a5' }}>{ctorError}</div>
+              ) : ctorLoading ? (
+                <div style={{ textAlign: 'center', paddingTop: 40 }}><div className="spinner" /></div>
+              ) : ctorSorted.length === 0 ? (
+                <div style={{ background: 'var(--bg-card)', border: '1px dashed rgba(255,255,255,0.08)', borderRadius: 14, padding: '48px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 40, marginBottom: 14 }}>🏎️</div>
+                  <div style={{ fontWeight: 700, fontSize: 16, color: '#a1a1aa', marginBottom: 8 }}>
+                    No constructor data for Round {ctorWeek ?? 1}
+                  </div>
+                  <div style={{ fontSize: 13, color: '#52525b', maxWidth: 360, margin: '0 auto' }}>
+                    WCC standings appear once race results have been imported.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th style={{ ...sTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleCtorSort('wccPosition')}>
+                          WCC {ctorSortBy === 'wccPosition' ? (ctorSortDir === 'asc' ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>⇅</span>}
+                        </th>
+                        <th style={{ ...sTh, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleCtorSort('name')}>
+                          Constructor {ctorSortBy === 'name' ? (ctorSortDir === 'asc' ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>⇅</span>}
+                        </th>
+                        <th style={{ ...sTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleCtorSort('wccPoints')}>
+                          WCC Pts {ctorSortBy === 'wccPoints' ? (ctorSortDir === 'asc' ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>⇅</span>}
+                        </th>
+                        <th style={{ ...sTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleCtorSort('fantasyPoints')}>
+                          Fantasy Pts {ctorSortBy === 'fantasyPoints' ? (ctorSortDir === 'asc' ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>⇅</span>}
+                        </th>
+                        <th style={{ ...sTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleCtorSort('price')}>
+                          Price {ctorSortBy === 'price' ? (ctorSortDir === 'asc' ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>⇅</span>}
+                        </th>
+                        <th style={{ ...sTh, textAlign: 'right', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleCtorSort('ownershipPct')}>
+                          Ownership {ctorSortBy === 'ownershipPct' ? (ctorSortDir === 'asc' ? '▲' : '▼') : <span style={{ opacity: 0.3 }}>⇅</span>}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ctorSorted.map((c, i) => (
+                        <tr key={c.id} style={{ borderBottom: i < ctorSorted.length - 1 ? '1px solid rgba(255,255,255,0.03)' : 'none' }}>
+                          <td style={sTd}>
+                            {c.wccPosition != null
+                              ? <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: 16, color: c.wccPosition <= 3 ? '#fbbf24' : '#fff' }}>P{c.wccPosition}</span>
+                              : <span style={{ color: 'var(--text-4)', fontSize: 12 }}>—</span>}
+                          </td>
+                          <td style={sTd}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{ width: 3, height: 28, borderRadius: 2, background: teamColor(c.name), flexShrink: 0 }} />
+                              <span style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>{c.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ ...sTd, textAlign: 'right', fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: 16 }}>
+                            {c.wccPoints != null ? c.wccPoints : <span style={{ color: 'var(--text-4)', fontSize: 12 }}>—</span>}
+                          </td>
+                          <td style={{ ...sTd, textAlign: 'right', fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: 16 }}>
+                            {c.fantasyPoints}
+                          </td>
+                          <td style={{ ...sTd, textAlign: 'right', fontWeight: 800, fontFamily: 'var(--font-display)', fontSize: 16 }}>
+                            {c.price != null ? `$${c.price.toFixed(1)}M` : <span style={{ color: 'var(--text-4)', fontSize: 12 }}>—</span>}
+                          </td>
+                          <td style={{ ...sTd, textAlign: 'right' }}>
+                            <span style={{ fontWeight: 700, fontSize: 13, color: c.ownershipPct >= 50 ? '#22c55e' : 'rgba(255,255,255,0.6)' }}>
+                              {c.ownershipPct}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
 }
+
+const sTh = {
+  padding: '10px 14px', fontSize: 10, fontWeight: 700,
+  textTransform: 'uppercase', letterSpacing: '0.08em',
+  color: 'var(--text-3)', textAlign: 'left',
+};
+const sTd = { padding: '11px 14px', fontSize: 13, color: 'var(--text-2)', verticalAlign: 'middle' };
+const sNavBtn = {
+  background: 'none', border: 'none', color: 'var(--text-3)',
+  cursor: 'pointer', fontSize: 18, padding: '2px 6px', lineHeight: 1,
+};

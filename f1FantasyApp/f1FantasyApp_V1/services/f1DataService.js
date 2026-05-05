@@ -232,10 +232,38 @@ async function processRaceResults(leagueId, raceWeek, season, results, { isSprin
   return { savedResults, failedResults };
 }
 
+/**
+ * Fetch real-world WCC constructor standings from Jolpica
+ * Returns: [{ position, constructorId, name, points, wins }]
+ */
+async function fetchConstructorStandings(season) {
+  try {
+    const url = `${ERGAST_API}/${season}/constructorStandings.json`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`API returned ${response.status}`);
+
+    const data = await response.json();
+    const lists = data?.MRData?.StandingsTable?.StandingsLists;
+    if (!lists || lists.length === 0) return [];
+
+    return lists[0].ConstructorStandings.map(s => ({
+      position: parseInt(s.position),
+      constructorId: s.Constructor.constructorId,
+      name: s.Constructor.name,
+      points: parseFloat(s.points),
+      wins: parseInt(s.wins),
+    }));
+  } catch (error) {
+    console.error('Error fetching constructor standings:', error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   fetchRaceResults,
   fetchSprintResults,
   fetchRaceResultsWithRetries,
   mapF1DriverToLocal,
   processRaceResults,
+  fetchConstructorStandings,
 };
