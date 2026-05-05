@@ -1856,4 +1856,105 @@ router.get('/leagues/:leagueId/optimal-team/:week', authMiddleware, async (req, 
   }
 });
 
+// ============ CONSTRUCTOR STANDINGS ============
+
+/**
+ * GET /api/leagues/:leagueId/constructor-standings/:week
+ * Returns each constructor with real WCC position/points, fantasy season points,
+ * price for the given week, and ownership % among league members that week.
+ */
+router.get('/leagues/:leagueId/constructor-standings/:week', authMiddleware, async (req, res) => {
+  try {
+    const { leagueId } = req.params;
+    const weekNum = parseInt(req.params.week);
+    if (isNaN(weekNum)) return res.status(400).json({ error: 'Invalid week' });
+
+    const userId = req.user.id;
+
+    const [member, league] = await Promise.all([
+      prisma.leagueUser.findUnique({ where: { userId_leagueId: { userId, leagueId } } }),
+      prisma.league.findUnique({ where: { id: leagueId }, select: { season: true, startingRound: true } }),
+    ]);
+
+    if (!member) return res.status(403).json({ error: 'Not a member' });
+    if (!league) return res.status(404).json({ error: 'League not found' });
+
+    const season = league.season;
+
+    // Fetch WCC standings from Jolpica; fall back to empty on error so the page still loads
+    let wccStandings = [];
+    try {
+      wccStandings = await f1DataService.fetchConstructorStandings(season);
+    } catch {
+      // Jolpica unavailable — page renders without WCC columns
+    }
+    const wccMap = {};
+    for (const s of wccStandings) {
+      wccMap[s.constructorId] = s;
+    }
+
+    const constructors = await prisma.constructor.findMany({ select: { id: true, f1Id: true, name: true } });
+
+    const fantasyResults = await prisma.constructorRaceResult.findMany({
+      where: { leagueId, week: { lte: weekNum } },
+      select: { constructorId: true, totalPoints: true },
+    });
+    const fantasyMap = {};
+    for (const r of fantasyResults) {
+      fantasyMap[r.constructorId] = (fantasyMap[r.constructorId] ?? 0) + r.totalPoints;
+    }
+
+    let prices = await prisma.constructorPrice.findMany({
+      where: { week: weekNum },
+      select: { constructorId: true, price: true },
+    });
+    if (prices.length === 0) {
+      const latest = await prisma.constructorPrice.findFirst({
+        where: { week: { lte: weekNum } },
+        orderBy: { week: 'desc' },
+        select: { week: true },
+      });
+      if (latest) {
+        prices = await prisma.constructorPrice.findMany({
+          where: { week: latest.week },
+          select: { constructorId: true, price: true },
+        });
+      }
+    }
+    const priceMap = {};
+    for (const p of prices) priceMap[p.constructorId] = p.price;
+
+    const memberCount = await prisma.leagueUser.count({ where: { leagueId } });
+    const selections = await prisma.userWeeklyTeamConstructor.findMany({
+      where: {
+        team: { leagueId, week: weekNum },
+      },
+      select: { constructorId: true },
+    });
+    const ownershipCount = {};
+    for (const s of selections) {
+      ownershipCount[s.constructorId] = (ownershipCount[s.constructorId] ?? 0) + 1;
+    }
+
+    const result = constructors.map(c => {
+      const wcc = wccMap[c.f1Id] ?? null;
+      return {
+        id: c.id,
+        f1Id: c.f1Id,
+        name: c.name,
+        wccPosition: wcc?.position ?? null,
+        wccPoints: wcc?.points ?? null,
+        fantasyPoints: fantasyMap[c.id] ?? 0,
+        price: priceMap[c.id] ?? null,
+        ownershipPct: memberCount > 0 ? Math.round(((ownershipCount[c.id] ?? 0) / memberCount) * 100) : 0,
+      };
+    });
+
+    res.json({ constructors: result, week: weekNum, season });
+  } catch (error) {
+    console.error('Error fetching constructor standings:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
