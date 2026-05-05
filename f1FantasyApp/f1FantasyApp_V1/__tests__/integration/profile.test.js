@@ -68,7 +68,14 @@ describe('GET /api/profile', () => {
   });
 
   test('200: computes favourite driver from most-picked selection', async () => {
-    const team2 = { ...TEAM_WITH_RESULTS, id: 'team2', week: 2 };
+    // team2 has only d1 — so d1 is picked 2× and d2 only 1×
+    const team2 = {
+      ...TEAM_WITH_RESULTS,
+      id: 'team2',
+      week: 2,
+      captainId: null,
+      drivers: [{ driverId: 'd1', driver: { id: 'd1', name: 'Max Verstappen' } }],
+    };
     prisma.user.findUnique.mockResolvedValue(BASE_USER);
     prisma.userWeeklyTeam.findMany.mockResolvedValue([TEAM_WITH_RESULTS, team2]);
     prisma.raceResult.findMany.mockResolvedValue([
@@ -81,8 +88,7 @@ describe('GET /api/profile', () => {
     const res = await request(app).get('/api/profile').set(AUTH());
 
     expect(res.status).toBe(200);
-    // Both d1 and d2 appear in both rounds (2 picks each), d1 is captain so it appears first
-    expect(res.body.stats.favouriteDriver).toBeDefined();
+    expect(res.body.stats.favouriteDriver.id).toBe('d1');
     expect(res.body.stats.favouriteDriver.pickCount).toBe(2);
   });
 

@@ -127,7 +127,7 @@ async function buildSeasonStats(userId, leagueIds, leagueRows) {
         roundPts += captainResult.points * extraMultiplier;
       }
     }
-    if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
+    if (team.chipUsed === 'no_negative' || team.chipUsed === 'no_limit') roundPts = Math.max(0, roundPts);
     roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
 
     if (results.length > 0 || conResults.length > 0) {
@@ -217,7 +217,6 @@ router.get('/profile', async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('Profile fetch error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -357,7 +356,7 @@ router.get('/leagues/:leagueId/stats', async (req, res) => {
           captainBonus = capResult.points * extraMultiplier;
         }
       }
-      if (team.chipUsed === 'no_negative') points = Math.max(0, points);
+      if (team.chipUsed === 'no_negative' || team.chipUsed === 'no_limit') points = Math.max(0, points);
       points += captainBonus;
       points += conResult?.totalPoints || 0;
 
