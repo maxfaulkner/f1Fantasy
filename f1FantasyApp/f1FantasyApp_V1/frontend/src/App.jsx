@@ -61,6 +61,7 @@ export default function App() {
             <Route path="/live" element={<Protected><LiveRace /></Protected>} />
             <Route path="/calendar" element={<Protected><Calendar /></Protected>} />
             <Route path="/profile" element={<Protected><Profile /></Protected>} />
+            <Route path="/profile/:userId" element={<Protected><Profile /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
