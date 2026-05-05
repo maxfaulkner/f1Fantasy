@@ -93,6 +93,85 @@ router.get('/achievements', async (req, res) => {
 
 // ============ PROFILE ============
 
+async function buildSeasonStats(userId, leagueIds, leagueRows) {
+  if (leagueIds.length === 0) {
+    return { totalPoints: 0, roundsPlayed: 0, bestRoundPoints: 0, worstRoundPoints: 0, favouriteDriver: null, chipsUsed: [] };
+  }
+
+  const teams = await prisma.userWeeklyTeam.findMany({
+    where: { userId, leagueId: { in: leagueIds } },
+    include: {
+      drivers: { include: { driver: { select: { id: true, name: true } } } },
+      constructors: true,
+    },
+  });
+
+  let totalPoints = 0, roundsPlayed = 0, bestRoundPoints = 0, worstRoundPoints = Infinity;
+  const driverPickCounts = {};
+  const driverNames = {};
+
+  for (const team of teams) {
+    const driverIds = team.drivers.map(d => d.driverId);
+    const results = await prisma.raceResult.findMany({
+      where: { leagueId: team.leagueId, week: team.week, driverId: { in: driverIds } },
+    });
+    const conResults = team.constructors[0] ? await prisma.constructorRaceResult.findMany({
+      where: { leagueId: team.leagueId, week: team.week, constructorId: team.constructors[0].constructorId },
+    }) : [];
+
+    let roundPts = results.reduce((s, r) => s + r.points, 0);
+    if (team.captainId) {
+      const captainResult = results.find(r => r.driverId === team.captainId);
+      if (captainResult) {
+        const extraMultiplier = team.chipUsed === 'triple_captain' ? 2 : 1;
+        roundPts += captainResult.points * extraMultiplier;
+      }
+    }
+    if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
+    roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
+
+    if (results.length > 0 || conResults.length > 0) {
+      roundsPlayed++;
+      totalPoints += roundPts;
+      if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
+      if (roundPts < worstRoundPoints) worstRoundPoints = roundPts;
+      for (const d of team.drivers) {
+        driverPickCounts[d.driverId] = (driverPickCounts[d.driverId] || 0) + 1;
+        driverNames[d.driverId] = d.driver.name;
+      }
+    }
+  }
+
+  const favouriteDriverId = Object.keys(driverPickCounts).sort((a, b) => driverPickCounts[b] - driverPickCounts[a])[0] || null;
+  const favouriteDriver = favouriteDriverId
+    ? { id: favouriteDriverId, name: driverNames[favouriteDriverId], pickCount: driverPickCounts[favouriteDriverId] }
+    : null;
+
+  const chips = await prisma.chip.findMany({
+    where: { userId, leagueId: { in: leagueIds }, usedWeek: { not: null } },
+    orderBy: { usedWeek: 'asc' },
+  });
+
+  const leagueNameMap = {};
+  for (const row of leagueRows) leagueNameMap[row.leagueId] = row.league.name;
+
+  const chipsUsed = chips.map(c => ({
+    type: c.type,
+    week: c.usedWeek,
+    leagueId: c.leagueId,
+    leagueName: leagueNameMap[c.leagueId] || 'Unknown',
+  }));
+
+  return {
+    totalPoints,
+    roundsPlayed,
+    bestRoundPoints,
+    worstRoundPoints: worstRoundPoints === Infinity ? 0 : worstRoundPoints,
+    favouriteDriver,
+    chipsUsed,
+  };
+}
+
 /**
  * GET /api/profile
  * Get current user's full profile with stats
@@ -100,6 +179,7 @@ router.get('/achievements', async (req, res) => {
 router.get('/profile', async (req, res) => {
   try {
     const userId = req.user.id;
+    const requestedSeason = req.query.season ? parseInt(req.query.season) : null;
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -111,9 +191,7 @@ router.get('/profile', async (req, res) => {
         avatarColor: true,
         createdAt: true,
         leagues: {
-          include: {
-            league: { select: { id: true, name: true, season: true } },
-          },
+          include: { league: { select: { id: true, name: true, season: true } } },
         },
         achievements: true,
       },
@@ -121,57 +199,21 @@ router.get('/profile', async (req, res) => {
 
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    // Aggregate stats across all leagues
-    const allTeams = await prisma.userWeeklyTeam.findMany({
-      where: { userId },
-      include: {
-        drivers: { include: { driver: true } },
-        constructors: { include: { constructor: true } },
-      },
-    });
+    const seasons = [...new Set(user.leagues.map(l => l.league.season))].sort((a, b) => b - a);
+    const activeSeason = (requestedSeason && seasons.includes(requestedSeason)) ? requestedSeason : (seasons[0] || null);
+    const seasonLeagues = user.leagues.filter(l => l.league.season === activeSeason);
+    const seasonLeagueIds = seasonLeagues.map(l => l.leagueId);
 
-    // Total points across all leagues (simplified)
-    const leagueIds = user.leagues.map(l => l.leagueId);
-    let totalPoints = 0;
-    let roundsPlayed = 0;
-    let bestRoundPoints = 0;
-
-    for (const team of allTeams) {
-      const driverIds = team.drivers.map(d => d.driverId);
-      const results = await prisma.raceResult.findMany({
-        where: { leagueId: team.leagueId, week: team.week, driverId: { in: driverIds } },
-      });
-      const conResults = team.constructors[0] ? await prisma.constructorRaceResult.findMany({
-        where: { leagueId: team.leagueId, week: team.week, constructorId: team.constructors[0].constructorId },
-      }) : [];
-
-      let roundPts = results.reduce((s, r) => s + r.points, 0);
-      // Apply captain multiplier (triple_captain = 3x, regular = 2x)
-      if (team.captainId) {
-        const captainResult = results.find(r => r.driverId === team.captainId);
-        if (captainResult) {
-          const extraMultiplier = team.chipUsed === 'triple_captain' ? 2 : 1;
-          roundPts += captainResult.points * extraMultiplier;
-        }
-      }
-      if (team.chipUsed === 'no_negative') roundPts = Math.max(0, roundPts);
-      roundPts += conResults.reduce((s, r) => s + r.totalPoints, 0);
-
-      if (results.length > 0 || conResults.length > 0) {
-        roundsPlayed++;
-        totalPoints += roundPts;
-        if (roundPts > bestRoundPoints) bestRoundPoints = roundPts;
-      }
-    }
+    const seasonStats = await buildSeasonStats(userId, seasonLeagueIds, seasonLeagues);
 
     res.json({
       ...user,
       stats: {
-        totalPoints,
-        roundsPlayed,
-        bestRoundPoints,
-        leagueCount: user.leagues.length,
+        ...seasonStats,
+        leagueCount: seasonLeagueIds.length,
         achievementCount: user.achievements.length,
+        activeSeason,
+        seasons,
       },
     });
   } catch (error) {
@@ -226,8 +268,11 @@ router.put('/profile', async (req, res) => {
  */
 router.get('/profile/:userId', async (req, res) => {
   try {
+    const targetUserId = req.params.userId;
+    const requestedSeason = req.query.season ? parseInt(req.query.season) : null;
+
     const user = await prisma.user.findUnique({
-      where: { id: req.params.userId },
+      where: { id: targetUserId },
       select: {
         id: true,
         name: true,
@@ -236,12 +281,29 @@ router.get('/profile/:userId', async (req, res) => {
         createdAt: true,
         achievements: true,
         leagues: {
-          include: { league: { select: { id: true, name: true } } },
+          include: { league: { select: { id: true, name: true, season: true } } },
         },
       },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user);
+
+    const seasons = [...new Set(user.leagues.map(l => l.league.season))].sort((a, b) => b - a);
+    const activeSeason = (requestedSeason && seasons.includes(requestedSeason)) ? requestedSeason : (seasons[0] || null);
+    const seasonLeagues = user.leagues.filter(l => l.league.season === activeSeason);
+    const seasonLeagueIds = seasonLeagues.map(l => l.leagueId);
+
+    const seasonStats = await buildSeasonStats(targetUserId, seasonLeagueIds, seasonLeagues);
+
+    res.json({
+      ...user,
+      stats: {
+        ...seasonStats,
+        leagueCount: seasonLeagueIds.length,
+        achievementCount: user.achievements.length,
+        activeSeason,
+        seasons,
+      },
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

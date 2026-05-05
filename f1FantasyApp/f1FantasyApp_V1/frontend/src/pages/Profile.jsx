@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { getUser } from '../auth';
 import Navbar from '../components/Navbar';
@@ -23,6 +23,14 @@ const ACHIEVEMENT_ICONS = {
   early_bird: '✅',
   social_butterfly: '🗣️',
   rocket_start: '🚀',
+};
+
+const CHIP_LABELS = {
+  wildcard: 'Wildcard',
+  triple_captain: 'Triple Captain',
+  no_negative: 'No Negative',
+  no_limit: 'No Negative',
+  free_hit: 'Free Hit',
 };
 
 function AvatarCircle({ name, color, size = 72 }) {
@@ -65,9 +73,13 @@ function AchievementBadge({ achievement }) {
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { userId: viewUserId } = useParams();
   const session = getUser();
+  const isOwnProfile = !viewUserId || viewUserId === session?.id;
+
   const [profile, setProfile] = useState(null);
   const [achievements, setAchievements] = useState([]);
+  const [selectedSeason, setSelectedSeason] = useState(null);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -77,18 +89,28 @@ export default function Profile() {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      api.getProfile(),
-      api.getAchievements(),
-    ]).then(([prof, achs]) => {
-      setProfile(prof);
-      setAchievements(achs);
-      setEditName(prof.name);
-      setEditBio(prof.bio || '');
-      setEditColor(prof.avatarColor || '#e10600');
-    }).catch(e => console.error(e))
-      .finally(() => setLoading(false));
-  }, []);
+    setLoading(true);
+    if (isOwnProfile) {
+      Promise.all([
+        api.getProfile(selectedSeason),
+        api.getAchievements(),
+      ]).then(([prof, achs]) => {
+        setProfile(prof);
+        setAchievements(achs);
+        setEditName(prof.name);
+        setEditBio(prof.bio || '');
+        setEditColor(prof.avatarColor || '#e10600');
+      }).catch(e => console.error(e))
+        .finally(() => setLoading(false));
+    } else {
+      api.getPublicProfile(viewUserId, selectedSeason)
+        .then(prof => {
+          setProfile(prof);
+          setAchievements(prof.achievements || []);
+        }).catch(e => console.error(e))
+          .finally(() => setLoading(false));
+    }
+  }, [viewUserId, isOwnProfile, selectedSeason]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -102,7 +124,6 @@ export default function Profile() {
       setEditing(false);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-      // Update local session name if changed
       if (updated.name !== session.name) {
         const stored = JSON.parse(localStorage.getItem('user') || '{}');
         localStorage.setItem('user', JSON.stringify({ ...stored, name: updated.name }));
@@ -123,6 +144,10 @@ export default function Profile() {
 
   if (!profile) return null;
 
+  const stats = profile.stats;
+  const seasons = stats?.seasons || [];
+  const activeSeason = stats?.activeSeason;
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-root)' }}>
       <Navbar />
@@ -130,7 +155,7 @@ export default function Profile() {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, padding: 24, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16 }}>
-          {editing ? (
+          {isOwnProfile && editing ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <AvatarCircle name={editName} color={editColor} size={72} />
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', maxWidth: 100 }}>
@@ -152,7 +177,7 @@ export default function Profile() {
           )}
 
           <div style={{ flex: 1 }}>
-            {editing ? (
+            {isOwnProfile && editing ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <input
                   value={editName}
@@ -197,16 +222,20 @@ export default function Profile() {
               <>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                   <h1 style={{ margin: 0, fontSize: 24, fontFamily: 'var(--font-display)', fontWeight: 800 }}>{profile.name}</h1>
-                  <button
-                    onClick={() => setEditing(true)}
-                    style={{
-                      background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)',
-                      borderRadius: 6, padding: '3px 10px', color: 'rgba(255,255,255,0.6)',
-                      cursor: 'pointer', fontSize: 12,
-                    }}
-                  >Edit Profile</button>
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => setEditing(true)}
+                      style={{
+                        background: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)',
+                        borderRadius: 6, padding: '3px 10px', color: 'rgba(255,255,255,0.6)',
+                        cursor: 'pointer', fontSize: 12,
+                      }}
+                    >Edit Profile</button>
+                  )}
                 </div>
-                <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 6 }}>{profile.email}</div>
+                {isOwnProfile && (
+                  <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginBottom: 6 }}>{profile.email}</div>
+                )}
                 {profile.bio && <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14 }}>{profile.bio}</div>}
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', marginTop: 6 }}>
                   Member since {new Date(profile.createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}
@@ -222,16 +251,37 @@ export default function Profile() {
           </div>
         )}
 
+        {/* Season selector */}
+        {seasons.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>Season</span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {seasons.map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSelectedSeason(s)}
+                  style={{
+                    background: s === activeSeason ? 'var(--red)' : 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${s === activeSeason ? 'var(--red)' : 'var(--border)'}`,
+                    borderRadius: 6, padding: '4px 12px', color: '#fff',
+                    cursor: 'pointer', fontSize: 13, fontWeight: s === activeSeason ? 700 : 400,
+                  }}
+                >{s}</button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Stats overview */}
-        {profile.stats && (
+        {stats && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 24 }}>
             {[
-              { label: 'Total Points', value: profile.stats.totalPoints, icon: '🏆' },
-              { label: 'Rounds Played', value: profile.stats.roundsPlayed, icon: '🏁' },
-              { label: 'Avg / Round', value: profile.stats.roundsPlayed > 0 ? (profile.stats.totalPoints / profile.stats.roundsPlayed).toFixed(1) : '—', icon: '📈' },
-              { label: 'Best Round', value: profile.stats.bestRoundPoints, icon: '⚡' },
-              { label: 'Leagues', value: profile.stats.leagueCount, icon: '🏎️' },
-              { label: 'Achievements', value: profile.stats.achievementCount, icon: '🎖️' },
+              { label: 'Total Points', value: stats.totalPoints, icon: '🏆' },
+              { label: 'Rounds Played', value: stats.roundsPlayed, icon: '🏁' },
+              { label: 'Avg / Round', value: stats.roundsPlayed > 0 ? (stats.totalPoints / stats.roundsPlayed).toFixed(1) : '—', icon: '📈' },
+              { label: 'Best Round', value: stats.bestRoundPoints, icon: '⚡' },
+              { label: 'Worst Round', value: stats.roundsPlayed > 0 ? stats.worstRoundPoints : '—', icon: '📉' },
+              { label: 'Achievements', value: stats.achievementCount, icon: '🎖️' },
             ].map(s => (
               <div key={s.label} style={{
                 background: 'var(--bg-card)', border: '1px solid var(--border)',
@@ -242,6 +292,50 @@ export default function Profile() {
                 <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1 }}>{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Favourite driver */}
+        {stats?.favouriteDriver && (
+          <div style={{ marginBottom: 24, padding: '14px 18px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ fontSize: 28 }}>💎</div>
+            <div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>Favourite Driver</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: '#fff' }}>{stats.favouriteDriver.name}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
+                Picked {stats.favouriteDriver.pickCount} {stats.favouriteDriver.pickCount === 1 ? 'time' : 'times'} this season
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Chips used timeline */}
+        {stats?.chipsUsed?.length > 0 && (
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 16, fontFamily: 'var(--font-display)', marginBottom: 12, color: 'rgba(255,255,255,0.8)' }}>
+              Chips Used
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {stats.chipsUsed.map((chip, i) => (
+                <div key={i} style={{
+                  background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 10, padding: '10px 16px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}>
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#fff', fontSize: 14 }}>
+                      {CHIP_LABELS[chip.type] || chip.type}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginLeft: 8 }}>
+                      {chip.leagueName}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}>
+                    Round {chip.week}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
